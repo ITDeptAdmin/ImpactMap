@@ -72,6 +72,9 @@ GitHub Actions automatically:
 2. Generates a new GeoJSON file
 3. Commits the updated GeoJSON into `/output`
 
+All updates are processed automatically via GitHub Actions.
+To verify a build completed successfully, check the "Actions" tab for a green checkmark.
+
 No one needs to install Python.
 No one needs to run command prompt.
 No one needs local development tools.
