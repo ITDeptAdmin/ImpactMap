@@ -5,6 +5,69 @@ This guide explains how to safely update the map data.
 You do NOT need programming experience.
 
 ---
+# ✅ EASY METHOD (Recommended – Fully Automated)
+
+You do NOT need Python.
+You do NOT need command prompt.
+You do NOT need to run scripts.
+
+---
+
+## Step 1: Go to GitHub
+
+Visit:
+
+https://github.com/ITDeptAdmin/ImpactMap
+
+Click into the `/data` folder.
+
+---
+
+## Step 2: Upload Updated CSV
+
+1. Click "Add file"
+2. Click "Upload files"
+3. Upload:
+
+Master_Clinic_ImpactMap.csv
+
+(If it already exists, it will replace the old version.)
+
+4. Click "Commit changes"
+
+---
+
+## Step 3: Wait 10–20 Seconds
+
+GitHub will automatically:
+
+- Run the conversion script
+- Generate new GeoJSON
+- Commit updated file into `/output`
+
+No further action required.
+
+---
+
+## Step 4: Verify
+
+Visit the Impact Map page.
+
+Confirm:
+
+- Map loads
+- Filters work
+- Search works
+- Points appear correctly
+
+If everything looks correct, update was successful.
+
+---
+
+# 🛠 Advanced / Manual Method (Backup Only)
+
+Only use this if GitHub automation fails.
+---
 
 # Step 1: Download Latest Files
 
@@ -102,6 +165,14 @@ Most common issues:
 • GeoJSON not uploaded
 • GitHub URL wrong
 • Cache not cleared
+
+To rollback:
+
+1. Go to GitHub
+2. Click "Commits"
+3. Revert to a previous working version
+
+The map will immediately restore.
 
 To rollback:
 - Revert to previous GitHub commit
