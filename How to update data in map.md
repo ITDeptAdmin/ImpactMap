@@ -59,9 +59,8 @@ Double click:
 
 OR
 
-Open Command Prompt in the folder and run:
-
-python scripts\build_impactmap_geojson.py
+Open Command Prompt in the folder and run python scripts by typing the following
+build_impactmap_geojson.py
 
 This creates:
 
