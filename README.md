@@ -47,8 +47,11 @@ The system is file-based and stable.
 - `analytics.md` (events and parameter being used so does not get deleted by accident)
 - `disaster recovery guide.md` (what to do if blows up)
 
-/README.md  
-- Overview documentation
+- How to update data in map.md
+  - Walks through how to update the map step by step
+  
+- README.md  
+  - Overview documentation (that you are currently reading)
 
 ---
 
