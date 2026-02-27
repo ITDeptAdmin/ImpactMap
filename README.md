@@ -42,6 +42,11 @@ The system is file-based and stable.
 /output  
 - `ImpactMap_Dataset.geojson` (Used by website)
 
+/readme
+- `technical.md` (technical reference for developers)
+- `analytics.md` (events and parameter being used so does not get deleted by accident)
+- `disaster recovery guide.md` (what to do if blows up)
+
 /README.md  
 - Overview documentation
 
