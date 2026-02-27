@@ -1,5 +1,5 @@
 # build_impactmap_geojson.py
-# Converts "Master_Clinic_ImpactMap.csv" into "ImpactMap_Dataset.geojson" for Impact Map on website
+# Converts CSV into GeoJSON for Impact Map on website
 # NOTE: Keeps cents for "Total Value of Care" (float), so totals match the spreadsheet.
 
 import csv
@@ -7,11 +7,13 @@ import json
 import os
 import sys
 
+# Default locations (used if you don't pass CLI args)
 INPUT_CANDIDATES = [
+    "data/Master_Clinic_ImpactMap.csv",
     "Master_Clinic_ImpactMap.csv",
-
 ]
-OUTPUT_FILE = "ImpactMap_Dataset.geojson"
+
+DEFAULT_OUTPUT_FILE = "output/ImpactMap_Dataset.geojson"
 
 # If your CSV has different header spelling/case, add aliases here:
 HEADER_ALIASES = {
@@ -41,7 +43,7 @@ def to_float(val):
     s = s.replace(",", "").replace("$", "")
     try:
         return float(s)
-    except:
+    except Exception:
         return None
 
 def to_int(val):
@@ -50,11 +52,10 @@ def to_int(val):
     s = str(val).strip()
     if s == "":
         return None
-    # allow commas like "1,234"
     s = s.replace(",", "").replace("$", "")
     try:
         return int(float(s))
-    except:
+    except Exception:
         return None
 
 def to_number_if_possible(key, val):
@@ -89,11 +90,29 @@ def to_number_if_possible(key, val):
     return s
 
 def main():
-    in_file = find_input_file()
-    if not in_file:
-        print("ERROR: Could not find input CSV. Expected one of:")
+    # Usage:
+    #   python scripts/build_impactmap_geojson.py
+    #   python scripts/build_impactmap_geojson.py data/Master_Clinic_ImpactMap.csv output/ImpactMap_Dataset.geojson
+
+    # Input path (optional arg1)
+    if len(sys.argv) >= 2 and sys.argv[1].strip():
+        in_file = sys.argv[1].strip()
+    else:
+        in_file = find_input_file()
+
+    # Output path (optional arg2)
+    if len(sys.argv) >= 3 and sys.argv[2].strip():
+        out_file = sys.argv[2].strip()
+    else:
+        out_file = DEFAULT_OUTPUT_FILE
+
+    if not in_file or not os.path.exists(in_file):
+        print("ERROR: Could not find input CSV.")
+        print("Looked for:")
         for n in INPUT_CANDIDATES:
             print(f" - {n}")
+        print("Or pass a path like:")
+        print("  python scripts/build_impactmap_geojson.py data/Master_Clinic_ImpactMap.csv output/ImpactMap_Dataset.geojson")
         sys.exit(1)
 
     with open(in_file, "r", encoding="utf-8-sig", newline="") as f:
@@ -119,10 +138,8 @@ def main():
 
             if lat is None or lon is None:
                 skipped += 1
-                print(
-                    f"SKIPPED row {i}: lat={row.get(lat_key)!r} "
-                    f"lon={row.get(lon_key)!r} event={row.get('Event #')!r} city={row.get('City')!r}"
-                )
+                # Keep logs short in Actions; uncomment if you want details:
+                # print(f"SKIPPED row {i}: lat={row.get(lat_key)!r} lon={row.get(lon_key)!r}")
                 continue
 
             # Build properties (everything except lat/lon)
@@ -149,10 +166,15 @@ def main():
 
     geojson = {"type": "FeatureCollection", "features": features}
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
+    # Ensure output folder exists
+    out_dir = os.path.dirname(out_file)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    with open(out_file, "w", encoding="utf-8") as out:
         json.dump(geojson, out, ensure_ascii=False)
 
-    print(f"OK: Wrote {OUTPUT_FILE}")
+    print(f"OK: Wrote {out_file}")
     print(f"Features: {len(features)}  Skipped (missing lat/lon): {skipped}")
 
 if __name__ == "__main__":
