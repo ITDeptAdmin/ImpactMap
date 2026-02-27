@@ -1,5 +1,5 @@
 # build_mapbox_geojson.py
-# Converts "master clinic mapbox file.csv" into "MapBox Dataset.geojson" for Mapbox
+# Converts "master clinic mapbox file.csv" into "MapBox_Dataset.geojson" for Mapbox
 # NOTE: Keeps cents for "Total Value of Care" (float), so totals match the spreadsheet.
 
 import csv
@@ -11,7 +11,7 @@ INPUT_CANDIDATES = [
     "master clinic mapbox file.csv",
     "master clinic mapbox file.cvs",
 ]
-OUTPUT_FILE = "MapBox Dataset.geojson"
+OUTPUT_FILE = "MapBox_Dataset.geojson"
 
 # If your CSV has different header spelling/case, add aliases here:
 HEADER_ALIASES = {
