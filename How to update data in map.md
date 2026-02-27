@@ -33,8 +33,26 @@ Save the file.
 
 ---
 
-# Step 3: Generate the Map File
+# Step 3.1: Got Python?
 
+If you don't have Python installed on your computer do the following.  If you have paython already go to step 3.2
+
+1. Download Python:
+   - https://www.python.org/downloads/
+
+2. Run the installer and **CHECK THIS BOX**:
+   - ✅ **Add Python to PATH**
+
+3. Verify Python installed:
+   - Open **Command Prompt**
+   - Run:
+     ```
+     python --version
+     ```
+   - You should see something like `Python 3.x.x`
+
+
+# Step 3.2: Generate the Map File
 Double click:
 
 /scripts/build_impactmap_geojson.py
