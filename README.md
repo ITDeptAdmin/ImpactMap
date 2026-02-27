@@ -2,7 +2,8 @@
 
 This repository powers the **RAM Impact Map** displayed on the RAM website.
 https://www.ramusa.org/our-impact/?
-or where ever somone uses the shortcode.
+
+(or where ever somone uses the shortcode)
 
 The Impact Map shows:
 - Total clinics
@@ -19,15 +20,18 @@ The website loads a GeoJSON dataset from this repository to render the map.
 # How It Works (Simple Explanation)
 
 1. A master spreadsheet (CSV file) contains all clinic data.
-2. A Python script converts that CSV into a GeoJSON dataset.
-3. The GeoJSON file is uploaded to GitHub.
+2. GitHub automatically converts that CSV into a GeoJSON dataset.
+3. The GeoJSON file is stored in this repository.
 4. The WordPress plugin loads that file.
 5. Mapbox renders the map.
 6. GTM/GA4 tracks user engagement.
 
-No database connections.
-No server-side processing.
-The system is file-based and stable.
+There is:
+- ❌ No database
+- ❌ No server-side processing
+- ❌ No hosting environment required
+
+The system is file-based, automated, and stable.
 
 ---
 
@@ -42,6 +46,9 @@ The system is file-based and stable.
 /output  
 - `ImpactMap_Dataset.geojson` (Used by website)
 
+/.github/workflows
+  - `build-impactmap.yml` (Automation)
+
 /readme
 - `technical.md` (technical reference for developers)
 - `analytics.md` (events and parameter being used so does not get deleted by accident)
@@ -54,6 +61,25 @@ The system is file-based and stable.
   - Overview documentation (that you are currently reading)
 
 ---
+
+# 🔥 AUTOMATION (NEW SYSTEM)
+
+When the CSV file inside `/data` is updated and committed:
+
+GitHub Actions automatically:
+
+1. Runs the Python script
+2. Generates a new GeoJSON file
+3. Commits the updated GeoJSON into `/output`
+
+No one needs to install Python.
+No one needs to run command prompt.
+No one needs local development tools.
+
+This is fully automated.
+
+---
+
 
 # Most Important Rule
 
@@ -87,3 +113,15 @@ Public tokens start with:
 `pk.eyJ...`
 
 If the map ever fails to render tiles, check the token.
+
+---
+
+# System Safety
+
+Because the system is file-based:
+
+- If something breaks, revert to a previous GitHub commit.
+- No database corruption is possible.
+- No server outage risk from this system.
+
+This is intentionally designed to be simple and resilient.
