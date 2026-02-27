@@ -49,6 +49,36 @@ No further action required.
 
 ---
 
+## 🔎 How to Verify the Automation Ran
+
+After committing the CSV update:
+
+1. Click the **Actions** tab at the top of the repository.
+2. Click the latest workflow run labeled:
+   "Build Impact Map GeoJSON"
+3. Confirm you see a green checkmark ✔
+
+If it is green:
+The system successfully rebuilt the GeoJSON file.
+
+If it is red:
+Click the workflow run to see the error message.
+Most issues are caused by:
+- Missing Latitude/Longitude columns
+- Renamed column headers
+- Incorrect CSV formatting
+
+---
+
+## 🔍 Optional: Confirm the Output File Updated
+
+1. Go to the `/output` folder.
+2. Open `ImpactMap_Dataset.geojson`
+3. Confirm the most recent commit was made by:
+   github-actions[bot]
+
+This confirms automation completed successfully.
+
 ## Step 4: Verify
 
 Visit the Impact Map page.
