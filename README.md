@@ -1,4 +1,20 @@
-# RAM Impact Map System
+# RAM Impact Map System (Summary)
+
+Geographic visualization system used on the Remote Area Medical website to display the organization's nationwide clinic impact.
+
+The system converts operational clinic data stored in a CSV file into a GeoJSON dataset used by a WordPress plugin and Mapbox to render an interactive map.
+
+## Technologies
+- Python
+- GitHub Actions
+- GeoJSON
+- Mapbox
+- WordPress
+- Google Analytics / GTM
+
+The goal of the system is to allow non-technical staff to update geographic reporting data through a spreadsheet while keeping the website integration stable and automated.
+
+# RAM Impact Map System (Dive Deeper)
 
 This repository powers the **RAM Impact Map** displayed on the RAM website.
 https://www.ramusa.org/our-impact/?
