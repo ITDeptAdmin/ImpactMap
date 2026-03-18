@@ -1,3 +1,4 @@
+![RAM Impact Map](images/Remote_Area_Medical_Impact_Map.jpg)
 # RAM Impact Map System (Summary)
 
 Geographic visualization system used on the Remote Area Medical website to display the organization's nationwide clinic impact.
