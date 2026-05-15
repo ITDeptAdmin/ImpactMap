@@ -2,6 +2,9 @@ name: Build Impact Map GeoJSON
 
 on:
   push:
+    branches:
+      - main
+      - staging
     paths:
       - "data/**.csv"
       - "scripts/**.py"
@@ -11,13 +14,21 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: impact-map-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    # Prevent a second loop run when github-actions[bot] commits the updated CSV/GeoJSON.
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -25,13 +36,35 @@ jobs:
           python-version: "3.11"
 
       - name: Run conversion script
+        env:
+          MAPBOX_GEOCODING_TOKEN: ${{ secrets.MAPBOX_GEOCODING_TOKEN }}
+          GEOCODE_REVIEW_FILE: output/geocode_review.csv
         run: |
           python scripts/build_impactmap_geojson.py data/Master_Clinic_ImpactMap.csv output/ImpactMap_Dataset.geojson
 
-      - name: Commit GeoJSON output
+      - name: Add build summary
+        run: |
+          echo "## RAM Impact Map Build" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CSV: data/Master_Clinic_ImpactMap.csv" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GeoJSON: output/ImpactMap_Dataset.geojson" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Review file: output/geocode_review.csv" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f output/geocode_review.csv ]; then
+            REVIEW_ROWS=$(tail -n +2 output/geocode_review.csv | wc -l | tr -d ' ')
+            echo "- Rows needing geocode review: $REVIEW_ROWS" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Commit updated CSV and GeoJSON output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/ImpactMap_Dataset.geojson
-          git diff --staged --quiet || git commit -m "Auto-build GeoJSON from CSV update"
-          git push
+
+          git add data/Master_Clinic_ImpactMap.csv output/ImpactMap_Dataset.geojson output/geocode_review.csv
+
+          if git diff --staged --quiet; then
+            echo "No generated changes to commit."
+          else
+            git commit -m "Auto-build Impact Map data"
+            git push
+          fi
