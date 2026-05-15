@@ -1,1 +1,2 @@
 row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason
+1705,999003,999003,2026,,Fake City,Tennessee,,Fake County,United States,,Missing coordinates and no street address. Left blank for manual review.
