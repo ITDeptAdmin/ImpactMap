@@ -1,4 +1,4 @@
-﻿Event #,Expedition #,Start Date,End Date,Year,City,State,NonUSState,County / Parish,Country,Address,Zipcode,Latitude,Longitude,Total Value of Care,Total Volunteers,Total Patients,Animals Served,Extractions,Fillings,Cleanings,Glasses,Eye Exams,Medical Exams,Women's Health
+Event #,Expedition #,Start Date,End Date,Year,City,State,NonUSState,County / Parish,Country,Address,Zipcode,Latitude,Longitude,Total Value of Care,Total Volunteers,Total Patients,Animals Served,Extractions,Fillings,Cleanings,Glasses,Eye Exams,Medical Exams,Women's Health
 0,Historic Adjustment,,,,Rockford,Tennessee,,,United States,,,35.865628,-84.68494,28622800.44,,137,,0,0,0,0,0,0,0
 1,1,1/15/1992,1/24/1992,1992,Santiago Ixcuintla,,Nayarit,,Mexico,,,21.80852,-105.20583,0,0,1053,0,0,0,0,0,0,0,0
 2,2,3/30/1992,4/9/1992,1992,Puente Camothan,,,,Mexico,,,21.70305,-104.07788,0,0,186,0,0,0,0,0,0,0,0
@@ -1774,4 +1774,4 @@ Knoxville, TN 37917",37917,35.9606,-83.9207,0,0,0,0,0,0,0,0,0,0,0
 1699,November TH 2025,11/1/2025,11/30/2025,2025,Knoxville,Tennessee,,Knox,United States,,,35.9606,-83.9207,26254,0,175,,0,0,0,0,0,0,0
 1700,December TH 2025,12/1/2025,12/31/2025,2025,Knoxville,Tennessee,,Knox,United States,,,35.9606,-83.9207,34532,0,178,,0,0,0,0,0,0,0
 1701,TH Events,,,2025,Rockford,Tennessee,,,United States,,,35.865628,-84.68494,4807,0,19,,0,0,0,0,0,0,0
-999001,999001,1/1/2026,1/1/2026,2026,Sneedville,Tennessee,,Hancock Co,United States,Willow Road Sneedville,,,,0,0,0,0,0,0,0,0,0,0,0
+999001,999001,1/1/2026,1/1/2026,2026,Sneedville,Tennessee,,Hancock Co,United States,Willow Road Sneedville,,36.529724,-83.217546,0,0,0,0,0,0,0,0,0,0,0
