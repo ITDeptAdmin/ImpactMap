@@ -6,14 +6,8 @@ row,event,expedition,year,address,city,state,non_us_state,county_parish,country,
 Gordonsville, VA 22942",Gordonsville,Virginia,,Orange,United States,22942,Mapbox confidence was too low: low
 1717,1716,1765,2026,"4524 CHALLENGER AVE
 Roanoke, VA 24012",Roanoke,Virginia,,Roanoke City,United States,24012,Mapbox confidence was too low: low
-1736,1735,1707,2026,"Fig Tree 
-9919 Kingston Pike  
-Knoxville, TN 379122",Knoxville,Tennessee,,Knox,United States,79122,Existing CSV match was ambiguous; Mapbox confidence was too low: low
-1775,1774,1757,2026,"Fig Tree 
-9919 Kingston Pike  
-Knoxville, TN 379122",Knoxville,Tennessee,,Knox,United States,79122,Existing CSV match was ambiguous; Mapbox confidence was too low: low
 1794,1793,1785,2026,"2450 Newport Hwy 
 Morristown, TN 37813",Morristown,Tennessee,,Hamblen,United States,37813,Existing CSV match was ambiguous; Mapbox confidence was too low: low
 1803,1802,1802,2026,"Safe Harbor 
 1750 W Hwy 25-70 
-Dandridge, TN 37820",Dandridge,Tennessee,,Jefferson,United States,37820,Existing CSV match was ambiguous; Mapbox confidence was too low: low
+New Market, TN 37820",Dandridge,Tennessee,,Jefferson,United States,37820,Existing CSV match was ambiguous; Mapbox confidence was too low: low

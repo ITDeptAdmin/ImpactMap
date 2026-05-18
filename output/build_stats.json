@@ -1,10 +1,10 @@
 {
-  "coordinate_rows_updated": 0,
-  "matched_existing": 0,
+  "coordinate_rows_updated": 2,
+  "matched_existing": 2,
   "mapbox_geocoded": 0,
-  "review_rows": 9,
-  "features": 1811,
-  "skipped_missing_latlon": 9,
+  "review_rows": 7,
+  "features": 1813,
+  "skipped_missing_latlon": 7,
   "csv": "data/Master_Clinic_ImpactMap.csv",
   "geojson": "output/ImpactMap_Dataset.geojson",
   "review_file": "output/geocode_review.csv"
