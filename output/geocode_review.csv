@@ -1,1 +1,28 @@
 row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason
+1703,1702,1710,2026,,Mapun/Taganak,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.
+1704,1703,1796,2026,,South Ubian,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.
+1705,1704,1766,2026,,Zamboanga,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.
+1714,1713,1759,2026,"164 CAMP CREEK PKWY
+Gordonsville, VA 22942",Gordonsville,Virginia,,Orange,United States,22942,Mapbox confidence was too low: low
+1717,1716,1765,2026,"4524 CHALLENGER AVE
+Roanoke, VA 24012",Roanoke,Virginia,,Roanoke City,United States,24012,Mapbox confidence was too low: low
+1736,1735,1707,2026,"Fig Tree 
+9919 Kingston Pike  
+Knoxville, TN 379122",Knoxville,Tennessee,,Knox,United States,79122,Mapbox confidence was too low: low
+1755,1754,1733,2026,"Fig Tree 
+9919 Kingston Pike  
+Knoxville, TN 37912",Knoxville,Tennessee,,Knox,United States,37912,Mapbox confidence was too low: low
+1775,1774,1757,2026,"Fig Tree 
+9919 Kingston Pike  
+Knoxville, TN 379122",Knoxville,Tennessee,,Knox,United States,79122,Mapbox confidence was too low: low
+1792,1791,1784,2026,"Fig Tree 
+9919 Kingston Pike 
+Knoxville TN, 37912",Knoxville,Tennessee,,Knox,United States,37912,Mapbox confidence was too low: low
+1794,1793,1785,2026,"2450 Newport Hwy 
+Morristown, TN 37813",Morristown,Tennessee,,Hamblen,United States,37813,Mapbox confidence was too low: low
+1803,1802,1802,2026,"Safe Harbor 
+1750 W Hwy 25-70 
+Dandridge, TN 37820",Dandridge,Tennessee,,Jefferson,United States,37820,Mapbox confidence was too low: low
+1815,1814,1814,2026,"Fig Tree 
+9919 Kingston Pike 
+Knoxville TN, 37912",Knoxville,Tennessee,,Knox,United States,37912,Mapbox confidence was too low: low
