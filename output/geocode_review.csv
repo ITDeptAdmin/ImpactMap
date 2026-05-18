@@ -1,13 +1,13 @@
-row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason
-1703,1702,1710,2026,,Mapun/Taganak,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.
-1704,1703,1796,2026,,South Ubian,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.
-1705,1704,1766,2026,,Zamboanga,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.
+row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason,suggested_latitude,suggested_longitude,suggested_confidence,suggested_address,suggested_source
+1703,1702,1710,2026,,Mapun/Taganak,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.,,,,,
+1704,1703,1796,2026,,South Ubian,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.,,,,,
+1705,1704,1766,2026,,Zamboanga,,,,Philippines,,Missing coordinates and no street address. Left blank for manual review.,,,,,
 1714,1713,1759,2026,"164 CAMP CREEK PKWY
-Gordonsville, VA 22942",Gordonsville,Virginia,,Orange,United States,22942,Mapbox confidence was too low: low
+Gordonsville, VA 22942",Gordonsville,Virginia,,Orange,United States,22942,Mapbox confidence was too low: low,37.977440,-78.209147,low,"164 Camp Creek Parkway, Zion Crossroads, Virginia 22942, United States",Mapbox (not auto-approved)
 1717,1716,1765,2026,"4524 CHALLENGER AVE
-Roanoke, VA 24012",Roanoke,Virginia,,Roanoke City,United States,24012,Mapbox confidence was too low: low
+Roanoke, VA 24012",Roanoke,Virginia,,Roanoke City,United States,24012,Mapbox confidence was too low: low,37.325497,-79.873406,low,"4524 Challenger Avenue Northeast, Roanoke, Virginia 24012, United States",Mapbox (not auto-approved)
 1794,1793,1785,2026,"2450 Newport Hwy 
-Morristown, TN 37813",Morristown,Tennessee,,Hamblen,United States,37813,Existing CSV match was ambiguous; Mapbox confidence was too low: low
+Morristown, TN 37813",Morristown,Tennessee,,Hamblen,United States,37813,Existing CSV match was ambiguous; Mapbox confidence was too low: low,36.189663,-83.281221,low,"2450 Newport Highway, Morristown, Tennessee 37813, United States",Mapbox (not auto-approved)
 1803,1802,1802,2026,"Safe Harbor 
 1750 W Hwy 25-70 
-New Market, TN 37820",Dandridge,Tennessee,,Jefferson,United States,37820,Existing CSV match was ambiguous; Mapbox confidence was too low: low
+New Market, TN 37820",Dandridge,Tennessee,,Jefferson,United States,37820,Existing CSV match was ambiguous; Mapbox confidence was too low: low,43.003506,-83.720574,low,"25-70 Corunna Road, Flint, Michigan 48503, United States",Mapbox (not auto-approved)
