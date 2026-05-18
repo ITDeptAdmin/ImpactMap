@@ -1,10 +1,12 @@
 {
-  "coordinate_rows_updated": 1,
-  "matched_existing": 1,
+  "coordinate_rows_updated": 3,
+  "matched_existing": 0,
   "mapbox_geocoded": 0,
-  "review_rows": 6,
-  "features": 1814,
-  "skipped_missing_latlon": 6,
+  "philippines_place_geocoded": 3,
+  "philippines_country_fallback": 0,
+  "review_rows": 3,
+  "features": 1817,
+  "skipped_missing_latlon": 3,
   "csv": "data/Master_Clinic_ImpactMap.csv",
   "geojson": "output/ImpactMap_Dataset.geojson",
   "review_file": "output/geocode_review.csv"
