@@ -22,7 +22,7 @@ The goal of this repository is to allow non-technical staff to update map data t
 
 3. Make your updates.
 
-4. If you do not know the Latitude or Longitude for a new clinic, leave those cells blank.
+4. Don't worry about Latitude or Longitude.  Leave those cells blank.
 
 5. Upload the updated CSV back to GitHub in the same location:
 
