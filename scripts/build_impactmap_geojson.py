@@ -60,6 +60,11 @@ REVIEW_HEADERS = [
     "country",
     "zipcode",
     "reason",
+    "suggested_latitude",
+    "suggested_longitude",
+    "suggested_confidence",
+    "suggested_address",
+    "suggested_source",
 ]
 
 # If Mapbox returns one of these confidence values, we accept it.
@@ -299,7 +304,16 @@ def get_mapbox_token() -> str:
     ).strip()
 
 
-def mapbox_forward_geocode(query: str, token: str) -> Tuple[Optional[Tuple[float, float]], str]:
+def mapbox_forward_geocode(
+    query: str, token: str
+) -> Tuple[Optional[Tuple[float, float]], str, Optional[Tuple[float, float]], str, str]:
+    """
+    Returns: (accepted_coord, note, suggested_coord, suggested_address, suggested_confidence)
+
+    accepted_coord is None when confidence is too low or the request failed.
+    suggested_coord holds the raw Mapbox result even when it is not accepted, so it
+    can be written to the review file as a human-readable hint.
+    """
     params = {
         "q": query,
         "access_token": token,
@@ -315,41 +329,55 @@ def mapbox_forward_geocode(query: str, token: str) -> Tuple[Optional[Tuple[float
         with urlopen(req, timeout=20) as response:
             data = json.loads(response.read().decode("utf-8"))
     except HTTPError as e:
-        return None, f"Mapbox HTTP error: {e.code}"
+        return None, f"Mapbox HTTP error: {e.code}", None, "", ""
     except URLError as e:
-        return None, f"Mapbox URL error: {e.reason}"
+        return None, f"Mapbox URL error: {e.reason}", None, "", ""
     except Exception as e:
-        return None, f"Mapbox request error: {e}"
+        return None, f"Mapbox request error: {e}", None, "", ""
 
     features = data.get("features") or []
     if not features:
-        return None, "Mapbox returned no results"
+        return None, "Mapbox returned no results", None, "", ""
 
     feature = features[0]
     coords = (((feature.get("geometry") or {}).get("coordinates")) or [])
 
     if len(coords) < 2:
-        return None, "Mapbox result did not include coordinates"
+        return None, "Mapbox result did not include coordinates", None, "", ""
 
     lon = to_float(coords[0])
     lat = to_float(coords[1])
 
     if lat is None or lon is None:
-        return None, "Mapbox coordinates were not numeric"
+        return None, "Mapbox coordinates were not numeric", None, "", ""
 
     props = feature.get("properties") or {}
     match_code = props.get("match_code") or {}
     confidence = str(match_code.get("confidence") or "").strip().lower()
+    full_address = props.get("full_address") or props.get("name") or query
+
+    suggested_coord = rounded_coord_pair(lat, lon)
 
     # Some Mapbox responses may not include match_code/confidence.
     # If confidence exists but is low, send to review. If no confidence exists, accept.
     if confidence and confidence not in ACCEPTED_MAPBOX_CONFIDENCE:
-        return None, f"Mapbox confidence was too low: {confidence}"
+        return None, f"Mapbox confidence was too low: {confidence}", suggested_coord, full_address, confidence
 
-    return rounded_coord_pair(lat, lon), f"Mapbox geocoded: {props.get('full_address') or props.get('name') or query}"
+    accepted_coord = rounded_coord_pair(lat, lon)
+    return accepted_coord, f"Mapbox geocoded: {full_address}", accepted_coord, full_address, confidence or "unknown"
 
 
-def make_review_row(row: Dict[str, str], header_map: Dict[str, Optional[str]], row_number: int, reason: str) -> Dict[str, str]:
+def make_review_row(
+    row: Dict[str, str],
+    header_map: Dict[str, Optional[str]],
+    row_number: int,
+    reason: str,
+    suggested_lat: Optional[float] = None,
+    suggested_lon: Optional[float] = None,
+    suggested_confidence: str = "",
+    suggested_address: str = "",
+    suggested_source: str = "",
+) -> Dict[str, str]:
     return {
         "row": str(row_number),
         "event": get(row, header_map, "event_id"),
@@ -363,6 +391,11 @@ def make_review_row(row: Dict[str, str], header_map: Dict[str, Optional[str]], r
         "country": get(row, header_map, "country"),
         "zipcode": get(row, header_map, "zipcode"),
         "reason": reason,
+        "suggested_latitude": f"{suggested_lat:.6f}" if suggested_lat is not None else "",
+        "suggested_longitude": f"{suggested_lon:.6f}" if suggested_lon is not None else "",
+        "suggested_confidence": suggested_confidence,
+        "suggested_address": suggested_address,
+        "suggested_source": suggested_source,
     }
 
 
@@ -427,18 +460,43 @@ def enrich_missing_coordinates(
             ))
             continue
 
-        coord, note = mapbox_forward_geocode(query, token)
+        accepted, note, sug_coord, sug_address, sug_confidence = mapbox_forward_geocode(query, token)
 
-        if coord:
-            set_cell(row, header_map, "latitude", f"{coord[0]:.6f}")
-            set_cell(row, header_map, "longitude", f"{coord[1]:.6f}")
+        sug_lat = sug_coord[0] if sug_coord else None
+        sug_lon = sug_coord[1] if sug_coord else None
+        sug_source = "Mapbox (not auto-approved)" if sug_coord else ""
+
+        if accepted and not ambiguous:
+            set_cell(row, header_map, "latitude", f"{accepted[0]:.6f}")
+            set_cell(row, header_map, "longitude", f"{accepted[1]:.6f}")
             changed += 1
             geocoded += 1
+        elif accepted and ambiguous:
+            # Mapbox is confident but an earlier CSV key was ambiguous — a human should verify.
+            reason = (
+                f"Existing CSV match was ambiguous; Mapbox returned {sug_confidence} confidence — verify before accepting"
+            )
+            sug_source = "Mapbox (not auto-approved — CSV match was ambiguous)"
+            review_rows.append(make_review_row(
+                row, header_map, idx, reason,
+                suggested_lat=sug_lat,
+                suggested_lon=sug_lon,
+                suggested_confidence=sug_confidence,
+                suggested_address=sug_address,
+                suggested_source=sug_source,
+            ))
         else:
             reason = note
             if ambiguous:
                 reason = f"Existing CSV match was ambiguous; {note}"
-            review_rows.append(make_review_row(row, header_map, idx, reason))
+            review_rows.append(make_review_row(
+                row, header_map, idx, reason,
+                suggested_lat=sug_lat,
+                suggested_lon=sug_lon,
+                suggested_confidence=sug_confidence,
+                suggested_address=sug_address,
+                suggested_source=sug_source,
+            ))
 
     out_dir = os.path.dirname(review_file)
     if out_dir:
