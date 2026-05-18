@@ -86,12 +86,26 @@ jobs:
           update_notes = manual_update_notes or ""
 
           if not manual_updated_by:
-              # Recommended commit message format:
-              # Updated by: First Last - Short note about what changed
-              match = re.match(r"^\s*Updated by:\s*(.+?)(?:\s+-\s*(.*))?\s*$", first_line, flags=re.IGNORECASE)
-              if match:
-                  updated_by = match.group(1).strip() or updated_by
-                  update_notes = (match.group(2) or "").strip()
+              # Recommended short commit message format:
+              # Update: First Last - Short note about what changed
+              #
+              # Also accepts:
+              # Updated by: First Last - Short note
+              # Update First Last - Short note
+              # By: First Last - Short note
+              patterns = [
+                  r"^\s*Updated by:\s*(.+?)(?:\s+-\s*(.*))?\s*$",
+                  r"^\s*Update:\s*(.+?)(?:\s+-\s*(.*))?\s*$",
+                  r"^\s*Update\s+(.+?)(?:\s+-\s*(.*))?\s*$",
+                  r"^\s*By:\s*(.+?)(?:\s+-\s*(.*))?\s*$",
+              ]
+
+              for pattern in patterns:
+                  match = re.match(pattern, first_line, flags=re.IGNORECASE)
+                  if match:
+                      updated_by = match.group(1).strip() or updated_by
+                      update_notes = (match.group(2) or "").strip()
+                      break
               else:
                   update_notes = first_line
 
