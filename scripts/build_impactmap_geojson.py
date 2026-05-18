@@ -1,12 +1,13 @@
 # build_impactmap_geojson.py
 # Converts the RAM Impact Map CSV into GeoJSON.
 #
-# New behavior:
+# Restored behavior:
 # - Keeps existing Latitude/Longitude values exactly as-is.
 # - Fills blank Latitude/Longitude by first matching another row in the CSV.
 # - If no safe CSV match is found and an address exists, uses Mapbox permanent geocoding.
 # - Writes newly found coordinates back into the same CSV.
 # - Writes rows needing review to output/geocode_review.csv.
+# - Writes build stats to output/build_stats.json.
 #
 # Required GitHub Secret for Mapbox geocoding:
 #   MAPBOX_GEOCODING_TOKEN
@@ -34,9 +35,9 @@ DEFAULT_BUILD_STATS_FILE = "output/build_stats.json"
 HEADER_ALIASES = {
     "latitude": ["Latitude", "Lat", "LAT", "lat", "latitude"],
     "longitude": ["Longitude", "Longitutde", "Long", "Lng", "LON", "lon", "lng", "longitude"],
-    "address": ["Address", "Street Address", "Location Address"],
-    "zipcode": ["Zipcode", "Zip Code", "ZIP", "Zip"],
-    "city": ["City"],
+    "address": ["Address", "Street Address", "Clinic Address", "Location Address"],
+    "zipcode": ["Zipcode", "Zip Code", "ZIP", "Zip", "Postal Code", "Postcode"],
+    "city": ["City", "Town", "Municipality"],
     "state": ["State"],
     "non_us_state": ["NonUSState", "Non US State", "Province", "Region"],
     "county": ["County / Parish", "County/Parish", "County", "Parish"],
@@ -78,6 +79,14 @@ def pick_header(row_fieldnames: List[str], aliases: List[str]) -> Optional[str]:
     for a in aliases:
         if a in row_fieldnames:
             return a
+
+    # Case-insensitive fallback while preserving the actual CSV header.
+    lower_to_actual = {str(f).strip().lower(): f for f in row_fieldnames}
+    for a in aliases:
+        found = lower_to_actual.get(str(a).strip().lower())
+        if found:
+            return found
+
     return None
 
 
@@ -119,7 +128,7 @@ def to_number_if_possible(key, val):
         return f if f is not None else s
 
     numeric_int_cols = {
-        "Event #", "Expedition #", "Year", "ZipCode", "Zipcode",
+        "Event #", "Expedition #", "Year", "ZipCode", "Zipcode", "Zip Code",
         "Total Volunteers", "Total Patients",
         "Animals Served", "Extractions", "Fillings", "Cleanings",
         "Glasses", "Eye Exams", "Medical Exams", "Women's Health",
@@ -175,6 +184,7 @@ def make_match_keys(row: Dict[str, str], header_map: Dict[str, Optional[str]]) -
 
     keys = []
 
+    # Most specific first.
     if address and zipcode and city and region and country:
         keys.append(("address_zip_city_region_country", f"{address}|{zipcode}|{city}|{region}|{country}"))
 
@@ -184,6 +194,8 @@ def make_match_keys(row: Dict[str, str], header_map: Dict[str, Optional[str]]) -
     if zipcode and city and region and country:
         keys.append(("zip_city_region_country", f"{zipcode}|{city}|{region}|{country}"))
 
+    # These fallback keys help older rows that may not have a street address,
+    # but they are only used when the matching key has exactly one coordinate.
     if city and region and country:
         keys.append(("city_region_country", f"{city}|{region}|{country}"))
 
@@ -278,6 +290,15 @@ def build_geocode_query(row: Dict[str, str], header_map: Dict[str, Optional[str]
     return query or None
 
 
+def get_mapbox_token() -> str:
+    return (
+        os.environ.get("MAPBOX_GEOCODING_TOKEN")
+        or os.environ.get("MAPBOX_ACCESS_TOKEN")
+        or os.environ.get("MAPBOX_TOKEN")
+        or ""
+    ).strip()
+
+
 def mapbox_forward_geocode(query: str, token: str) -> Tuple[Optional[Tuple[float, float]], str]:
     params = {
         "q": query,
@@ -351,7 +372,7 @@ def enrich_missing_coordinates(
     header_map: Dict[str, Optional[str]],
     review_file: str
 ) -> Dict[str, int]:
-    token = os.environ.get("MAPBOX_GEOCODING_TOKEN", "").strip()
+    token = get_mapbox_token()
     coordinate_index = build_coordinate_index(rows, header_map)
 
     changed = 0
@@ -379,7 +400,7 @@ def enrich_missing_coordinates(
             ))
             continue
 
-        # Both are blank or invalid.
+        # Both are blank or invalid. First try to copy from a safe exact-ish match in the CSV.
         coord, match_type, ambiguous = find_existing_coordinate_match(row, header_map, coordinate_index)
 
         if coord:
@@ -399,10 +420,6 @@ def enrich_missing_coordinates(
             ))
             continue
 
-        if ambiguous:
-            # Still allow Mapbox if we have a street address.
-            pass
-
         if not token:
             review_rows.append(make_review_row(
                 row, header_map, idx,
@@ -418,7 +435,10 @@ def enrich_missing_coordinates(
             changed += 1
             geocoded += 1
         else:
-            review_rows.append(make_review_row(row, header_map, idx, note))
+            reason = note
+            if ambiguous:
+                reason = f"Existing CSV match was ambiguous; {note}"
+            review_rows.append(make_review_row(row, header_map, idx, reason))
 
     out_dir = os.path.dirname(review_file)
     if out_dir:
