@@ -72,6 +72,13 @@ REVIEW_HEADERS = [
 # because some global addresses may not include the same metadata.
 ACCEPTED_MAPBOX_CONFIDENCE = {"exact", "high", "medium"}
 
+# Philippines place-level geocoding fallback.
+# Used only when country=Philippines but no city/region/county data exists at all.
+PHILIPPINES_COUNTRY_FALLBACK = (12.8797, 121.7740)
+# Approximate bounding box — used to sanity-check Mapbox results for Philippines queries.
+PHILIPPINES_LAT_RANGE = (4.0, 22.0)
+PHILIPPINES_LON_RANGE = (115.0, 128.0)
+
 
 def find_input_file() -> Optional[str]:
     for name in INPUT_CANDIDATES:
@@ -171,6 +178,18 @@ def country_for_query(country: str) -> str:
 def is_usa(country: str) -> bool:
     c = norm(country)
     return c in {"", "usa", "us", "u.s.", "united states", "united states of america"}
+
+
+def is_philippines(country: str) -> bool:
+    c = norm(country)
+    return c in {"philippines", "the philippines", "ph", "phl"}
+
+
+def is_in_philippines(lat: float, lon: float) -> bool:
+    return (
+        PHILIPPINES_LAT_RANGE[0] <= lat <= PHILIPPINES_LAT_RANGE[1]
+        and PHILIPPINES_LON_RANGE[0] <= lon <= PHILIPPINES_LON_RANGE[1]
+    )
 
 
 def region_value(row: Dict[str, str], header_map: Dict[str, Optional[str]]) -> str:
@@ -295,6 +314,41 @@ def build_geocode_query(row: Dict[str, str], header_map: Dict[str, Optional[str]
     return query or None
 
 
+def build_philippines_place_queries(row: Dict[str, str], header_map: Dict[str, Optional[str]]) -> List[str]:
+    """
+    Builds an ordered list of Mapbox query strings for a Philippines row that has no street address.
+    Tries the full city string first; if it contains '/', also tries each segment separately.
+    Falls back to region (NonUSState) and county if city is absent.
+    Returns an empty list when no place/admin data exists at all (triggers country-center fallback).
+    """
+    city = get(row, header_map, "city").strip()
+    region = get(row, header_map, "non_us_state").strip()
+    county = get(row, header_map, "county").strip()
+
+    queries: List[str] = []
+    seen: set = set()
+
+    def add(q: str) -> None:
+        q = q.strip()
+        if q and q not in seen:
+            seen.add(q)
+            queries.append(q)
+
+    if city:
+        add(f"{city}, Philippines")
+        if "/" in city:
+            for part in city.split("/"):
+                add(f"{part.strip()}, Philippines")
+
+    if region:
+        add(f"{region}, Philippines")
+
+    if county:
+        add(f"{county}, Philippines")
+
+    return queries
+
+
 def get_mapbox_token() -> str:
     return (
         os.environ.get("MAPBOX_GEOCODING_TOKEN")
@@ -367,6 +421,71 @@ def mapbox_forward_geocode(
     return accepted_coord, f"Mapbox geocoded: {full_address}", accepted_coord, full_address, confidence or "unknown"
 
 
+def mapbox_place_geocode_philippines(
+    query: str, token: str
+) -> Tuple[Optional[Tuple[float, float]], str, Optional[Tuple[float, float]], str, str]:
+    """
+    Like mapbox_forward_geocode but restricts the Mapbox search to the Philippines (country=PH)
+    and rejects results that fall outside the Philippines bounding box.
+
+    Returns: (accepted_coord, note, suggested_coord, suggested_address, suggested_confidence)
+    """
+    params = {
+        "q": query,
+        "access_token": token,
+        "limit": "1",
+        "autocomplete": "false",
+        "permanent": "true",
+        "country": "PH",
+    }
+
+    url = "https://api.mapbox.com/search/geocode/v6/forward?" + urlencode(params)
+    req = Request(url, headers={"User-Agent": "RAM Impact Map GitHub Action"})
+
+    try:
+        with urlopen(req, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as e:
+        return None, f"Mapbox HTTP error: {e.code}", None, "", ""
+    except URLError as e:
+        return None, f"Mapbox URL error: {e.reason}", None, "", ""
+    except Exception as e:
+        return None, f"Mapbox request error: {e}", None, "", ""
+
+    features = data.get("features") or []
+    if not features:
+        return None, "Mapbox returned no results", None, "", ""
+
+    feature = features[0]
+    coords = (((feature.get("geometry") or {}).get("coordinates")) or [])
+
+    if len(coords) < 2:
+        return None, "Mapbox result did not include coordinates", None, "", ""
+
+    lon = to_float(coords[0])
+    lat = to_float(coords[1])
+
+    if lat is None or lon is None:
+        return None, "Mapbox coordinates were not numeric", None, "", ""
+
+    if not is_in_philippines(lat, lon):
+        return None, "Mapbox result coordinates are outside the Philippines bounding box", None, "", ""
+
+    props = feature.get("properties") or {}
+    match_code = props.get("match_code") or {}
+    confidence = str(match_code.get("confidence") or "").strip().lower()
+    full_address = props.get("full_address") or props.get("name") or query
+
+    suggested_coord = rounded_coord_pair(lat, lon)
+
+    # Place-level queries often omit match_code entirely; treat absent confidence as accepted.
+    if confidence and confidence not in ACCEPTED_MAPBOX_CONFIDENCE:
+        return None, f"Mapbox confidence was too low: {confidence}", suggested_coord, full_address, confidence
+
+    accepted_coord = rounded_coord_pair(lat, lon)
+    return accepted_coord, f"Mapbox Philippines place geocoded: {full_address}", accepted_coord, full_address, confidence or "unknown"
+
+
 def make_review_row(
     row: Dict[str, str],
     header_map: Dict[str, Optional[str]],
@@ -411,6 +530,8 @@ def enrich_missing_coordinates(
     changed = 0
     matched_existing = 0
     geocoded = 0
+    philippines_place_geocoded = 0
+    philippines_country_fallback = 0
     review_rows: List[Dict[str, str]] = []
 
     for idx, row in enumerate(rows, start=1):
@@ -446,11 +567,65 @@ def enrich_missing_coordinates(
         query = build_geocode_query(row, header_map)
 
         if not query:
-            # Keep old records with no address from becoming a scary "error."
-            review_rows.append(make_review_row(
-                row, header_map, idx,
-                "Missing coordinates and no street address. Left blank for manual review."
-            ))
+            country_raw = get(row, header_map, "country")
+            if is_philippines(country_raw):
+                # Philippines-specific: attempt place-level geocoding when there is no street address.
+                ph_queries = build_philippines_place_queries(row, header_map)
+
+                if not ph_queries:
+                    # No city/region/county at all — use the Philippines country-center fallback.
+                    set_cell(row, header_map, "latitude", f"{PHILIPPINES_COUNTRY_FALLBACK[0]:.6f}")
+                    set_cell(row, header_map, "longitude", f"{PHILIPPINES_COUNTRY_FALLBACK[1]:.6f}")
+                    changed += 1
+                    philippines_country_fallback += 1
+                elif not token:
+                    review_rows.append(make_review_row(
+                        row, header_map, idx,
+                        "Philippines place row: missing coordinates and no MAPBOX_GEOCODING_TOKEN was available."
+                    ))
+                else:
+                    accepted_ph = None
+                    sug_coord_ph: Optional[Tuple[float, float]] = None
+                    sug_address_ph = ""
+                    sug_confidence_ph = ""
+                    note_ph = "Mapbox returned no results for any Philippines place query"
+
+                    for ph_query in ph_queries:
+                        a, n, sc, sa, sconf = mapbox_place_geocode_philippines(ph_query, token)
+                        if a:
+                            accepted_ph = a
+                            note_ph = n
+                            sug_coord_ph, sug_address_ph, sug_confidence_ph = sc, sa, sconf
+                            break
+                        elif sc and sug_coord_ph is None:
+                            # Keep the first low-confidence suggestion; try next query for a better result.
+                            sug_coord_ph, sug_address_ph, sug_confidence_ph = sc, sa, sconf
+                            note_ph = n
+
+                    if accepted_ph:
+                        set_cell(row, header_map, "latitude", f"{accepted_ph[0]:.6f}")
+                        set_cell(row, header_map, "longitude", f"{accepted_ph[1]:.6f}")
+                        changed += 1
+                        philippines_place_geocoded += 1
+                    else:
+                        sug_lat_ph = sug_coord_ph[0] if sug_coord_ph else None
+                        sug_lon_ph = sug_coord_ph[1] if sug_coord_ph else None
+                        sug_src = "Mapbox Philippines place (not auto-approved)" if sug_coord_ph else ""
+                        review_rows.append(make_review_row(
+                            row, header_map, idx,
+                            f"Philippines place geocoding failed: {note_ph}",
+                            suggested_lat=sug_lat_ph,
+                            suggested_lon=sug_lon_ph,
+                            suggested_confidence=sug_confidence_ph,
+                            suggested_address=sug_address_ph,
+                            suggested_source=sug_src,
+                        ))
+            else:
+                # Non-Philippines row with no street address — leave for manual review.
+                review_rows.append(make_review_row(
+                    row, header_map, idx,
+                    "Missing coordinates and no street address. Left blank for manual review."
+                ))
             continue
 
         if not token:
@@ -511,6 +686,8 @@ def enrich_missing_coordinates(
         "coordinate_rows_updated": changed,
         "matched_existing": matched_existing,
         "mapbox_geocoded": geocoded,
+        "philippines_place_geocoded": philippines_place_geocoded,
+        "philippines_country_fallback": philippines_country_fallback,
         "review_rows": len(review_rows),
     }
 
@@ -519,6 +696,8 @@ def enrich_missing_coordinates(
         f"changed={stats['coordinate_rows_updated']}, "
         f"matched_existing={stats['matched_existing']}, "
         f"mapbox_geocoded={stats['mapbox_geocoded']}, "
+        f"philippines_place_geocoded={stats['philippines_place_geocoded']}, "
+        f"philippines_country_fallback={stats['philippines_country_fallback']}, "
         f"review_rows={stats['review_rows']}"
     )
     print(f"Review file: {review_file}")
