@@ -1,7 +1,1 @@
 row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason,suggested_latitude,suggested_longitude,suggested_confidence,suggested_address,suggested_source
-1714,1713,1759,2026,"164 CAMP CREEK PKWY
-Gordonsville, VA 22942",Gordonsville,Virginia,,Orange,United States,22942,Mapbox confidence was too low: low,37.977440,-78.209147,low,"164 Camp Creek Parkway, Zion Crossroads, Virginia 22942, United States",Mapbox (not auto-approved)
-1717,1716,1765,2026,"4524 CHALLENGER AVE
-Roanoke, VA 24012",Roanoke,Virginia,,Roanoke City,United States,24012,Mapbox confidence was too low: low,37.325497,-79.873406,low,"4524 Challenger Avenue Northeast, Roanoke, Virginia 24012, United States",Mapbox (not auto-approved)
-1794,1793,1785,2026,"2450 Newport Highway 
-Morristown, TN 37813",Morristown,Tennessee,,Hamblen,United States,37813,Existing CSV match was ambiguous; Mapbox confidence was too low: low,36.189663,-83.281221,low,"2450 Newport Highway, Morristown, Tennessee 37813, United States",Mapbox (not auto-approved)
