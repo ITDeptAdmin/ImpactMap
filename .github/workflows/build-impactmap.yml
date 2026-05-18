@@ -2,22 +2,42 @@ name: Build Impact Map GeoJSON
 
 on:
   push:
+    branches:
+      - main
+      - staging
     paths:
       - "data/**.csv"
       - "scripts/**.py"
       - ".github/workflows/build-impactmap.yml"
   workflow_dispatch:
+    inputs:
+      updated_by:
+        description: "Your name, for the update log"
+        required: false
+        type: string
+      update_notes:
+        description: "Short note about what changed"
+        required: false
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: impact-map-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    # Prevent a second loop run when github-actions[bot] commits the updated CSV/GeoJSON/log.
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -25,13 +45,149 @@ jobs:
           python-version: "3.11"
 
       - name: Run conversion script
+        env:
+          MAPBOX_GEOCODING_TOKEN: ${{ secrets.MAPBOX_GEOCODING_TOKEN }}
+          GEOCODE_REVIEW_FILE: output/geocode_review.csv
+          BUILD_STATS_FILE: output/build_stats.json
         run: |
           python scripts/build_impactmap_geojson.py data/Master_Clinic_ImpactMap.csv output/ImpactMap_Dataset.geojson
 
-      - name: Commit GeoJSON output
+      - name: Append update log
+        env:
+          BUILD_STATS_FILE: output/build_stats.json
+          UPDATE_LOG_FILE: logs/update_log.csv
+          GITHUB_USER: ${{ github.actor }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'Manual workflow run' }}
+          MANUAL_UPDATED_BY: ${{ inputs.updated_by }}
+          MANUAL_UPDATE_NOTES: ${{ inputs.update_notes }}
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          import re
+          from datetime import datetime, timezone
+
+          stats_file = os.environ.get("BUILD_STATS_FILE", "output/build_stats.json")
+          log_file = os.environ.get("UPDATE_LOG_FILE", "logs/update_log.csv")
+
+          with open(stats_file, "r", encoding="utf-8") as f:
+              stats = json.load(f)
+
+          commit_message = (os.environ.get("COMMIT_MESSAGE") or "").replace("\r\n", "\n").strip()
+          first_line = commit_message.splitlines()[0].strip() if commit_message else ""
+
+          manual_updated_by = (os.environ.get("MANUAL_UPDATED_BY") or "").strip()
+          manual_update_notes = (os.environ.get("MANUAL_UPDATE_NOTES") or "").strip()
+
+          updated_by = manual_updated_by or "Unknown / not provided"
+          update_notes = manual_update_notes or ""
+
+          if not manual_updated_by:
+              # Recommended short commit message format:
+              # Update: First Last - Short note about what changed
+              #
+              # Also accepts:
+              # Updated by: First Last - Short note
+              # Update First Last - Short note
+              # By: First Last - Short note
+              patterns = [
+                  r"^\s*Updated by:\s*(.+?)(?:\s+-\s*(.*))?\s*$",
+                  r"^\s*Update:\s*(.+?)(?:\s+-\s*(.*))?\s*$",
+                  r"^\s*Update\s+(.+?)(?:\s+-\s*(.*))?\s*$",
+                  r"^\s*By:\s*(.+?)(?:\s+-\s*(.*))?\s*$",
+              ]
+
+              for pattern in patterns:
+                  match = re.match(pattern, first_line, flags=re.IGNORECASE)
+                  if match:
+                      updated_by = match.group(1).strip() or updated_by
+                      update_notes = (match.group(2) or "").strip()
+                      break
+              else:
+                  update_notes = first_line
+
+          os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+          headers = [
+              "timestamp_utc",
+              "branch",
+              "updated_by",
+              "github_user",
+              "commit_sha",
+              "commit_message",
+              "update_notes",
+              "features",
+              "skipped_missing_latlon",
+              "coordinate_rows_updated",
+              "matched_existing",
+              "mapbox_geocoded",
+              "review_rows",
+          ]
+
+          row = {
+              "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              "branch": os.environ.get("BRANCH_NAME", ""),
+              "updated_by": updated_by,
+              "github_user": os.environ.get("GITHUB_USER", ""),
+              "commit_sha": os.environ.get("COMMIT_SHA", ""),
+              "commit_message": commit_message,
+              "update_notes": update_notes,
+              "features": stats.get("features", 0),
+              "skipped_missing_latlon": stats.get("skipped_missing_latlon", 0),
+              "coordinate_rows_updated": stats.get("coordinate_rows_updated", 0),
+              "matched_existing": stats.get("matched_existing", 0),
+              "mapbox_geocoded": stats.get("mapbox_geocoded", 0),
+              "review_rows": stats.get("review_rows", 0),
+          }
+
+          file_exists = os.path.exists(log_file) and os.path.getsize(log_file) > 0
+          with open(log_file, "a", encoding="utf-8", newline="") as f:
+              writer = csv.DictWriter(f, fieldnames=headers)
+              if not file_exists:
+                  writer.writeheader()
+              writer.writerow(row)
+
+          print(f"Update logged to {log_file}")
+          print(f"Updated by: {updated_by}")
+          print(f"Notes: {update_notes}")
+          PY
+
+      - name: Add build summary
+        run: |
+          echo "## RAM Impact Map Build" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CSV: data/Master_Clinic_ImpactMap.csv" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GeoJSON: output/ImpactMap_Dataset.geojson" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Review file: output/geocode_review.csv" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Update log: logs/update_log.csv" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -f output/build_stats.json ]; then
+            FEATURES=$(python -c 'import json; print(json.load(open("output/build_stats.json")).get("features", 0))')
+            MATCHED=$(python -c 'import json; print(json.load(open("output/build_stats.json")).get("matched_existing", 0))')
+            GEOCODED=$(python -c 'import json; print(json.load(open("output/build_stats.json")).get("mapbox_geocoded", 0))')
+            UPDATED=$(python -c 'import json; print(json.load(open("output/build_stats.json")).get("coordinate_rows_updated", 0))')
+            REVIEW_ROWS=$(python -c 'import json; print(json.load(open("output/build_stats.json")).get("review_rows", 0))')
+            echo "- Features built: $FEATURES" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Coordinate rows updated: $UPDATED" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Matched existing coordinates: $MATCHED" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Mapbox geocoded rows: $GEOCODED" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Rows needing geocode review: $REVIEW_ROWS" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Commit updated CSV, GeoJSON, review file, and log
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/ImpactMap_Dataset.geojson
-          git diff --staged --quiet || git commit -m "Auto-build GeoJSON from CSV update"
-          git push
+
+          git add data/Master_Clinic_ImpactMap.csv output/ImpactMap_Dataset.geojson output/geocode_review.csv logs/update_log.csv
+
+          if git diff --staged --quiet; then
+            echo "No generated changes to commit."
+          else
+            git commit -m "Auto-build Impact Map data"
+            git push
+          fi
