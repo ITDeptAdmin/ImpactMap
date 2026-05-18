@@ -29,6 +29,7 @@ INPUT_CANDIDATES = [
 
 DEFAULT_OUTPUT_FILE = "output/ImpactMap_Dataset.geojson"
 DEFAULT_REVIEW_FILE = "output/geocode_review.csv"
+DEFAULT_BUILD_STATS_FILE = "output/build_stats.json"
 
 HEADER_ALIASES = {
     "latitude": ["Latitude", "Lat", "LAT", "lat", "latitude"],
@@ -349,7 +350,7 @@ def enrich_missing_coordinates(
     fieldnames: List[str],
     header_map: Dict[str, Optional[str]],
     review_file: str
-) -> int:
+) -> Dict[str, int]:
     token = os.environ.get("MAPBOX_GEOCODING_TOKEN", "").strip()
     coordinate_index = build_coordinate_index(rows, header_map)
 
@@ -428,10 +429,23 @@ def enrich_missing_coordinates(
         writer.writeheader()
         writer.writerows(review_rows)
 
-    print(f"Coordinate enrichment: changed={changed}, matched_existing={matched_existing}, mapbox_geocoded={geocoded}, review_rows={len(review_rows)}")
+    stats = {
+        "coordinate_rows_updated": changed,
+        "matched_existing": matched_existing,
+        "mapbox_geocoded": geocoded,
+        "review_rows": len(review_rows),
+    }
+
+    print(
+        "Coordinate enrichment: "
+        f"changed={stats['coordinate_rows_updated']}, "
+        f"matched_existing={stats['matched_existing']}, "
+        f"mapbox_geocoded={stats['mapbox_geocoded']}, "
+        f"review_rows={stats['review_rows']}"
+    )
     print(f"Review file: {review_file}")
 
-    return changed
+    return stats
 
 
 def read_csv(in_file: str) -> Tuple[List[str], List[Dict[str, str]]]:
@@ -471,7 +485,7 @@ def build_geojson(
     fieldnames: List[str],
     header_map: Dict[str, Optional[str]],
     out_file: str
-) -> None:
+) -> Dict[str, int]:
     lat_key = header_map["latitude"]
     lon_key = header_map["longitude"]
 
@@ -516,8 +530,23 @@ def build_geojson(
     with open(out_file, "w", encoding="utf-8") as out:
         json.dump(geojson, out, ensure_ascii=False)
 
+    stats = {"features": len(features), "skipped_missing_latlon": skipped}
+
     print(f"OK: Wrote {out_file}")
-    print(f"Features: {len(features)}  Skipped (missing lat/lon): {skipped}")
+    print(f"Features: {stats['features']}  Skipped (missing lat/lon): {stats['skipped_missing_latlon']}")
+
+    return stats
+
+
+def write_build_stats(stats_file: str, stats: Dict[str, object]) -> None:
+    out_dir = os.path.dirname(stats_file)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    with open(stats_file, "w", encoding="utf-8") as f:
+        json.dump(stats, f, ensure_ascii=False, indent=2)
+
+    print(f"Build stats: {stats_file}")
 
 
 def main():
@@ -532,6 +561,7 @@ def main():
         out_file = DEFAULT_OUTPUT_FILE
 
     review_file = os.environ.get("GEOCODE_REVIEW_FILE", DEFAULT_REVIEW_FILE).strip() or DEFAULT_REVIEW_FILE
+    stats_file = os.environ.get("BUILD_STATS_FILE", DEFAULT_BUILD_STATS_FILE).strip() or DEFAULT_BUILD_STATS_FILE
 
     if not in_file or not os.path.exists(in_file):
         print("ERROR: Could not find input CSV.")
@@ -545,7 +575,8 @@ def main():
     fieldnames, rows = read_csv(in_file)
     header_map = build_header_map(fieldnames)
 
-    changed = enrich_missing_coordinates(rows, fieldnames, header_map, review_file)
+    enrichment_stats = enrich_missing_coordinates(rows, fieldnames, header_map, review_file)
+    changed = int(enrichment_stats.get("coordinate_rows_updated", 0))
 
     if changed:
         write_csv(in_file, fieldnames, rows)
@@ -553,7 +584,16 @@ def main():
     else:
         print("OK: No CSV coordinate updates needed.")
 
-    build_geojson(rows, fieldnames, header_map, out_file)
+    geojson_stats = build_geojson(rows, fieldnames, header_map, out_file)
+
+    build_stats = {
+        **enrichment_stats,
+        **geojson_stats,
+        "csv": in_file,
+        "geojson": out_file,
+        "review_file": review_file,
+    }
+    write_build_stats(stats_file, build_stats)
 
 
 if __name__ == "__main__":
