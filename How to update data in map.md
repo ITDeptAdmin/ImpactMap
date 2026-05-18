@@ -1,19 +1,32 @@
 # Updating the RAM Impact Map Data
 
-This guide explains how to safely update the map data.
+This guide explains how to safely update the RAM Impact Map data.
 
-You do NOT need programming experience.
+You do **not** need programming experience.
+
+You do **not** need Python.
+
+You do **not** need command prompt.
+
+GitHub will rebuild the map automatically.
 
 ---
-# ✅ EASY METHOD (Recommended – Fully Automated)
 
-You do NOT need Python.
-You do NOT need command prompt.
-You do NOT need to run scripts.
+# Quick Version
+
+1. Download the latest CSV.
+2. Update it in Excel.
+3. Upload it back to GitHub.
+4. Use this commit message:
+
+   `Update: Your Name - Short note`
+
+5. Wait for the green checkmark.
+6. Check the map.
 
 ---
 
-## Step 1: Go to GitHub
+# Step 1: Go to GitHub
 
 Visit:
 
@@ -23,166 +36,248 @@ Click into the `/data` folder.
 
 ---
 
-## Step 2: Upload Updated CSV
+# Step 2: Download the Latest CSV
 
-1. Click "Add file"
-2. Click "Upload files"
-3. Upload:
+Download:
 
-Master_Clinic_ImpactMap.csv
+`Master_Clinic_ImpactMap.csv`
 
-(If it already exists, it will replace the old version.)
+Important: Always download the latest file before editing.
 
-4. Click "Commit changes"
+Do not use an old copy saved on your computer because the system may have automatically filled in new Latitude and Longitude values since your last download.
 
 ---
 
-## Step 3: Wait 10–20 Seconds
+# Step 3: Edit the CSV in Excel
 
-GitHub will automatically:
+Open the CSV in Excel.
 
-- Run the conversion script
-- Generate new GeoJSON
-- Commit updated file into `/output`
+Make your updates.
 
-No further action required.
+You can:
+
+- Add new clinics
+- Correct city/state/country information
+- Add or correct addresses
+- Update patient totals
+- Update volunteer totals
+- Update value of care
+- Update service totals
+
+Do **not** change the column headers.
+
+If you do not know Latitude or Longitude, leave those cells blank.
+
+The system will try to fill them automatically.
 
 ---
 
-## 🔎 How to Verify the Automation Ran
+# Step 4: Upload the Updated CSV
 
-After committing the CSV update:
+Go back to the `/data` folder in GitHub.
+
+Click:
+
+`Add file` → `Upload files`
+
+Upload:
+
+`Master_Clinic_ImpactMap.csv`
+
+If GitHub says the file already exists, that is okay. You are replacing the old version.
+
+---
+
+# Step 5: Add the Commit Message
+
+Before clicking **Commit changes**, enter a message like this:
+
+`Update: Your Name - Short note about what changed`
+
+Examples:
+
+- `Update: Cody - Added 2026 clinic data`
+- `Update: Jane - Corrected Tennessee patient totals`
+- `Update: Sarah - Updated clinic addresses`
+
+This is important because multiple staff may use the same GitHub login.
+
+The name in this message is how we track who updated the map.
+
+Then click:
+
+`Commit changes`
+
+---
+
+# Step 6: Wait for GitHub to Rebuild the Map
+
+After you commit the CSV, GitHub will automatically:
+
+- Check the CSV
+- Fill missing Latitude and Longitude when possible
+- Use existing matching locations first
+- Use Mapbox geocoding when needed
+- Create a review file for rows it cannot safely fix
+- Rebuild the map file
+- Update the audit log
+
+This usually takes less than a minute.
+
+---
+
+# Step 7: Check the Green Checkmark
+
+After committing the CSV:
 
 1. Click the **Actions** tab at the top of the repository.
-2. Click the latest workflow run labeled:
-   "Build Impact Map GeoJSON"
-3. Confirm you see a green checkmark ✔
+2. Click the latest workflow run named:
 
-If it is green:
-The system successfully rebuilt the GeoJSON file.
+   `Build Impact Map GeoJSON`
 
-If it is red:
-Click the workflow run to see the error message.
-Most issues are caused by:
-- Missing Latitude/Longitude columns
-- Renamed column headers
-- Incorrect CSV formatting
+3. Confirm it has a green checkmark.
+
+If it is green, the map data rebuilt successfully.
+
+If it is red, click the failed run to see the error message.
 
 ---
 
-## 🔍 Optional: Confirm the Output File Updated
+# Step 8: Check for Rows Needing Review
 
-1. Go to the `/output` folder.
-2. Open `ImpactMap_Dataset.geojson`
-3. Confirm the most recent commit was made by:
-   github-actions[bot]
+After the build finishes, check this file:
 
-This confirms automation completed successfully.
+`/output/geocode_review.csv`
 
-## Step 4: Verify
+If the file only has headers or is empty, there is nothing to review.
+
+If there are rows listed, those rows need someone to check the address or Latitude/Longitude.
+
+Common reasons a row appears in the review file:
+
+- Missing address
+- Missing Latitude and Longitude
+- Only Latitude is filled
+- Only Longitude is filled
+- The address could not be safely geocoded
+
+If you fix the row in the CSV, upload the CSV again and GitHub will rerun the build.
+
+---
+
+# Step 9: Verify the Map
 
 Visit the Impact Map page.
 
-Confirm:
+Production map:
 
-- Map loads
-- Filters work
-- Search works
-- Points appear correctly
+https://www.ramusa.org/our-impact/
 
-If everything looks correct, update was successful.
+Check that:
 
----
-
-# 🛠 Advanced / Manual Method (Backup Only)
-
-Only use this if GitHub automation fails.
----
-
-# Step 1: Download Latest Files
-
-Go to:
-https://github.com/ITDeptAdmin/ImpactMap
-
-Click "Code" → Download ZIP
-
-Extract to your computer.
+- The map loads.
+- Search works.
+- Filters work.
+- Points appear correctly.
+- New or updated locations look correct.
 
 ---
 
-# Step 2: Update the Master Spreadsheet
+# How Latitude and Longitude Work
 
-Open:
+The map needs Latitude and Longitude to place clinics correctly.
 
-/data/Master_Clinic_ImpactMap.csv
+You do not have to manually find coordinates every time.
 
-Edit data as needed:
-- Add new clinics
-- Correct cities/states
-- Update totals
-- Do NOT change column headers!
+When the CSV is uploaded, the system follows these rules:
 
-Save the file.
+## If Latitude and Longitude already exist
 
----
+The system leaves them alone.
 
-# Step 3.1: Got Python?
+It does not overwrite existing coordinates.
 
-If you don't have Python installed on your computer do the following.  If you have paython already go to step 3.2
+## If Latitude and Longitude are blank
 
-1. Download Python:
-   - https://www.python.org/downloads/
+The system first tries to find a matching location already in the CSV.
 
-2. Run the installer and **CHECK THIS BOX**:
-   - ✅ **Add Python to PATH**
+It checks things like:
 
-3. Verify Python installed:
-   - Open **Command Prompt**
-   - Run:
-     ```
-     python --version
-     ```
-   - You should see something like `Python 3.x.x`
+- Address
+- Zipcode
+- City
+- State
+- Country
+- County/Parish
 
+If it finds a match, it copies the existing coordinates.
 
-# Step 3.2: Generate the Map File
-Double click:
+## If no match is found
 
-/scripts/build_impactmap_geojson.py
+If the row has a usable address, the system uses Mapbox to find the Latitude and Longitude.
 
-OR
+Then it writes those coordinates back into the CSV automatically.
 
-Open Command Prompt in the folder and run python scripts by typing the following
+## If it cannot safely find coordinates
 
-build_impactmap_geojson.py
+It does not guess.
 
-This creates:
+It adds the row to:
 
-/output/ImpactMap_Dataset.geojson
+`/output/geocode_review.csv`
 
 ---
 
-# Step 4: Upload to GitHub
+# Update Log
 
-Upload BOTH files:
-- data/Master_Clinic_ImpactMap.csv
-- output/ImpactMap_Dataset.geojson
+The system keeps an update log here:
 
-Commit changes.
+`/logs/update_log.csv`
+
+This log records:
+
+- When the map was updated
+- Who updated it based on the commit message
+- What note was entered
+- How many map points were built
+- How many coordinates were filled automatically
+- How many rows need review
+
+This is why the commit message is important.
+
+Always use:
+
+`Update: Your Name - Short note`
 
 ---
 
-# Step 5: Verify on Website
+# Files You Should Know
 
-1. Visit the Impact Map page (desktop).
-2. Confirm:
-   - Map loads
-   - Filters work
-   - Search works
-   - Points appear
-   - No console errors
+## File staff updates
 
-If map loads and filters work, update was successful.
+`/data/Master_Clinic_ImpactMap.csv`
+
+This is the main file staff should edit.
+
+## File the website uses
+
+`/output/ImpactMap_Dataset.geojson`
+
+This is generated automatically.
+
+Do not edit this by hand.
+
+## File for geocoding problems
+
+`/output/geocode_review.csv`
+
+Check this after updates.
+
+## File for update history
+
+`/logs/update_log.csv`
+
+This tracks who updated the map and when.
 
 ---
 
@@ -190,20 +285,29 @@ If map loads and filters work, update was successful.
 
 Most common issues:
 
-• CSV column changed
-• Script error
-• GeoJSON not uploaded
-• GitHub URL wrong
-• Cache not cleared
+- CSV column headers were changed
+- CSV file was saved in the wrong format
+- Required location fields are missing
+- Latitude/Longitude columns were renamed or deleted
+- GitHub Actions failed
+- Website cache needs to be cleared
 
-To rollback:
+If the GitHub Action fails:
 
-1. Go to GitHub
-2. Click "Commits"
-3. Revert to a previous working version
+1. Go to the **Actions** tab.
+2. Open the failed workflow run.
+3. Read the error message.
+4. Contact the website/development team if you are unsure.
 
-The map will immediately restore.
+---
 
-To rollback:
-- Revert to previous GitHub commit
-- Confirm GeoJSON URL works in browser
+# Emergency Rollback
+
+If a bad update was uploaded:
+
+1. Go to the GitHub repository.
+2. Click **Commits**.
+3. Find the last good update.
+4. Revert to the previous working version.
+
+Because this system is file-based, the map can usually be restored quickly.
