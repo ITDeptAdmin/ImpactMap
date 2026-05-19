@@ -3,72 +3,181 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RAM Impact Map — Geocode Review</title>
+  <title>Impact Map Control Center — Remote Area Medical</title>
+  <!-- Inter font — clean, modern, free via Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header>
-  <h1>RAM Impact Map — Geocode Review</h1>
-  <p>Read-only review dashboard · Updated automatically after each build</p>
+<!-- ═══════════════════════════════════════════════════════ HEADER ══════ -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <span class="header-icon" aria-hidden="true">🗺</span>
+      <div>
+        <h1 class="header-title">Impact Map Control Center</h1>
+        <p class="header-sub">Remote Area Medical · Data Operations Dashboard</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill" aria-live="polite">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Loading…</span>
+      </div>
+      <button class="btn-icon-hdr" onclick="location.reload()" title="Refresh dashboard">↻</button>
+    </div>
+  </div>
 </header>
 
-<main>
+<!-- ════════════════════════════════════════════════════════ MAIN ═══════ -->
+<main class="main-content">
 
-  <div class="notice">
-    <strong>This page is read-only.</strong>
-    Rows shown here could not be placed on the map automatically because their
-    coordinates were missing or the geocoding result was not confident enough to
-    approve without a human check.<br><br>
-    <strong>To approve suggested coordinates:</strong> When rows have suggestions,
-    the build workflow automatically opens a <strong>Pull Request</strong> on GitHub
-    with those coordinates ready to apply. Review the PR, confirm the suggested
-    address looks correct, and <strong>merge it</strong> if it does.<br><br>
-    Only GitHub users with <strong>repository write access</strong> can merge
-    approval pull requests. If a suggestion looks wrong, close the PR and correct
-    the CSV file manually.
+  <!-- Loading state (replaced by dashboard on success, or error state on failure) -->
+  <div id="loading-msg" class="loading-state">
+    <div class="spinner" aria-hidden="true"></div>
+    <span>Loading dashboard data…</span>
   </div>
 
-  <!-- Summary counts -->
-  <div id="stats-bar" class="stats-bar"></div>
+  <!-- Dashboard (hidden until data loads) -->
+  <div id="dashboard" style="display:none">
 
-  <!-- Action buttons -->
-  <div id="toolbar" class="toolbar"></div>
+    <!-- ── BUILD STATUS ─────────────────────────────────────────────── -->
+    <section class="section" aria-label="Build status">
+      <div class="section-hdr">
+        <h2 class="section-title">
+          <span aria-hidden="true">📊</span> Build Status
+        </h2>
+        <span class="section-meta" id="build-meta"></span>
+      </div>
+      <div id="stats-grid" class="stats-grid"></div>
+    </section>
 
-  <!-- Loading / error message -->
-  <div id="status-msg">Loading review data…</div>
+    <!-- ── ACTIONS ROW ───────────────────────────────────────────────── -->
+    <div class="actions-row">
 
-  <!-- Review table (injected by app.js) -->
-  <div id="review-table"></div>
+      <!-- File downloads -->
+      <section class="panel section" aria-label="File downloads">
+        <h2 class="section-title">
+          <span aria-hidden="true">📥</span> Download Files
+        </h2>
+        <div id="file-actions" class="action-list"></div>
+      </section>
 
-  <footer>
-    <span id="last-updated"></span>
-    &nbsp;·&nbsp;
-    <a href="../../output/geocode_review.csv">Download geocode_review.csv</a>
-    &nbsp;·&nbsp;
-    <a href="../../output/build_stats.json">Download build_stats.json</a>
-  </footer>
+      <!-- GitHub links -->
+      <section class="panel section" aria-label="GitHub links">
+        <h2 class="section-title">
+          <span aria-hidden="true">🔗</span> GitHub
+        </h2>
+        <div id="github-links" class="action-list"></div>
+      </section>
+
+      <!-- How it works -->
+      <section class="panel section" aria-label="How the workflow works">
+        <h2 class="section-title">
+          <span aria-hidden="true">ℹ️</span> How It Works
+        </h2>
+        <div class="howto-steps">
+          <div class="step">
+            <span class="step-num">1</span>
+            <span>Staff upload an updated <strong>Master CSV</strong> to GitHub.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">2</span>
+            <span>GitHub Actions builds the map automatically.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">3</span>
+            <span>Safe coordinates are filled in automatically. Uncertain ones appear in the Review Queue below.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">4</span>
+            <span>A <strong>Pull Request</strong> is opened with suggested coordinates ready to apply.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">5</span>
+            <span>A user with write access <strong>reviews and merges</strong> the PR to approve.</span>
+          </div>
+        </div>
+        <p class="howto-note">
+          This page is <strong>read-only</strong>. Only GitHub users with
+          <strong>repository write access</strong> can approve or merge changes.
+          CSV uploads happen through GitHub for security.
+        </p>
+      </section>
+
+    </div><!-- /actions-row -->
+
+    <!-- ── REVIEW QUEUE ──────────────────────────────────────────────── -->
+    <section class="section" aria-label="Geocode review queue">
+      <div class="section-hdr">
+        <h2 class="section-title">
+          <span aria-hidden="true">🔍</span>
+          Review Queue
+          <span id="queue-badge" class="queue-badge zero">0</span>
+        </h2>
+        <button id="copy-all-btn" class="btn btn-copy" style="display:none"
+                aria-label="Copy all row numbers with suggested coordinates">
+          📋 Copy all row numbers
+        </button>
+      </div>
+
+      <div class="filter-bar" role="search">
+        <div class="filter-pills" role="group" aria-label="Filter rows">
+          <button class="pill active" data-filter="all">All</button>
+          <button class="pill" data-filter="with-suggestion">Has Suggestion</button>
+          <button class="pill" data-filter="no-suggestion">No Suggestion</button>
+        </div>
+        <input id="search-input" type="search" class="search-input"
+               placeholder="Search city, address, event…"
+               aria-label="Search review rows"
+               autocomplete="off">
+      </div>
+
+      <p id="filter-count" class="filter-count" style="display:none" aria-live="polite"></p>
+      <div id="review-list" aria-live="polite"></div>
+
+    </section><!-- /review queue -->
+
+  </div><!-- /dashboard -->
 
 </main>
 
-<!--
-  GITHUB PAGES SETUP NOTES
-  ========================
-  This page fetches data files using relative paths:
-    ../../output/geocode_review.csv
-    ../../output/build_stats.json
+<!-- ════════════════════════════════════════════════════════ FOOTER ═════ -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span id="footer-build"></span>
+    <span class="footer-sep">·</span>
+    <a href="../../output/geocode_review.csv" title="Download geocode review CSV">geocode_review.csv</a>
+    <span class="footer-sep">·</span>
+    <a href="../../output/build_stats.json" title="Download build stats JSON">build_stats.json</a>
+    <span class="footer-sep">·</span>
+    <span>Read-only · No data is sent from this page</span>
+  </div>
+</footer>
 
-  This works when GitHub Pages is configured to serve from the repository ROOT:
+<!--
+  ════════════════════════════════════════════════════
+  GITHUB PAGES SETUP
+  ════════════════════════════════════════════════════
+  Configure Pages to serve from the REPOSITORY ROOT (not docs/ folder):
     GitHub repo → Settings → Pages → Source → Deploy from branch
     Branch: main (or staging)   Folder: / (root)
 
-  The dashboard URL will then be:
+  Dashboard URL:
     https://<owner>.github.io/<repo>/docs/geocode-review/
 
-  If you configure Pages to serve from the docs/ folder instead, the output/
-  files will not be accessible via relative path. In that case, edit app.js
-  and change DATA_BASE to the raw GitHub content URL for your repo:
+  Data files accessed via relative paths from this page:
+    ../../output/geocode_review.csv   → output/geocode_review.csv
+    ../../output/build_stats.json     → output/build_stats.json
+    ../../data/Master_Clinic_...csv   → data/Master_Clinic_ImpactMap.csv
+    ../../output/ImpactMap_...geojson → output/ImpactMap_Dataset.geojson
+
+  If using docs/ as Pages source, edit DATA_BASE in app.js:
     const DATA_BASE = "https://raw.githubusercontent.com/ITDeptAdmin/ImpactMap/main";
+  ════════════════════════════════════════════════════
 -->
 
 <script src="app.js"></script>

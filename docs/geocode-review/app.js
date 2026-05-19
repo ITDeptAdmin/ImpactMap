@@ -1,23 +1,41 @@
-// RAM Impact Map — Geocode Review Dashboard
+// RAM Impact Map — Control Center Dashboard
+// ==========================================
 //
-// DATA PATH CONFIGURATION
-// -----------------------
-// GitHub Pages must be configured to serve from the repository root
-// (Settings → Pages → Source: Deploy from branch → folder: / (root)).
-// If your Pages source is the docs/ folder instead, change DATA_BASE
-// to an absolute URL such as:
+// !! REPO-SPECIFIC VALUES TO UPDATE !!
+// ------------------------------------
+// 1. GITHUB_REPO  — set to your actual "owner/repo" string
+// 2. GITHUB_BRANCH — branch that holds the live source files
+// 3. DATA_BASE    — change to raw.githubusercontent.com URL if Pages
+//                   serves from docs/ instead of repo root
+//
+// GitHub Pages must serve from the REPO ROOT for relative paths to work:
+//   Settings → Pages → Source: Deploy from branch → Folder: / (root)
+// If serving from docs/, change DATA_BASE to:
 //   "https://raw.githubusercontent.com/ITDeptAdmin/ImpactMap/main"
-const DATA_BASE = "../..";
-const REVIEW_CSV_URL   = `${DATA_BASE}/output/geocode_review.csv`;
-const BUILD_STATS_URL  = `${DATA_BASE}/output/build_stats.json`;
 
-// Adjust these to match your actual GitHub repository.
-const GITHUB_REPO       = "ITDeptAdmin/ImpactMap";
-const GITHUB_ACTIONS_URL = `https://github.com/${GITHUB_REPO}/actions`;
-const GITHUB_PRS_URL     = `https://github.com/${GITHUB_REPO}/pulls`;
+// ── CONFIG ────────────────────────────────────────────────────────────────
+const DATA_BASE    = "../..";
+const GITHUB_REPO   = "ITDeptAdmin/ImpactMap";   // !! update this !!
+const GITHUB_BRANCH = "main";                     // !! update if needed !!
 
-// ── CSV parser (handles quoted fields and embedded newlines) ──────────────
+const REVIEW_CSV_URL    = `${DATA_BASE}/output/geocode_review.csv`;
+const BUILD_STATS_URL   = `${DATA_BASE}/output/build_stats.json`;
+const CSV_DOWNLOAD_URL  = `${DATA_BASE}/data/Master_Clinic_ImpactMap.csv`;
+const GEO_DOWNLOAD_URL  = `${DATA_BASE}/output/ImpactMap_Dataset.geojson`;
 
+const GITHUB_BASE        = `https://github.com/${GITHUB_REPO}`;
+const GITHUB_ACTIONS_URL = `${GITHUB_BASE}/actions`;
+const GITHUB_PRS_URL     = `${GITHUB_BASE}/pulls`;
+const GITHUB_CSV_URL     = `${GITHUB_BASE}/blob/${GITHUB_BRANCH}/data/Master_Clinic_ImpactMap.csv`;
+const GITHUB_UPLOAD_URL  = `${GITHUB_BASE}/upload/${GITHUB_BRANCH}/data`;
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let ALL_ROWS      = [];
+let currentFilter = "all";
+let searchQuery   = "";
+
+// ── CSV PARSER ────────────────────────────────────────────────────────────
+// Handles RFC 4180 CSV including quoted fields with embedded newlines.
 function parseCSV(text) {
   const rows = [];
   let i = 0;
@@ -27,20 +45,16 @@ function parseCSV(text) {
     const row = [];
     while (i < n) {
       if (text[i] === '"') {
-        // quoted field
         let val = "";
-        i++; // skip opening quote
+        i++;
         while (i < n) {
           if (text[i] === '"') {
             if (text[i + 1] === '"') { val += '"'; i += 2; }
-            else { i++; break; } // closing quote
-          } else {
-            val += text[i++];
-          }
+            else { i++; break; }
+          } else { val += text[i++]; }
         }
         row.push(val);
       } else {
-        // unquoted field — read until comma or line ending
         let val = "";
         while (i < n && text[i] !== "," && text[i] !== "\n" && text[i] !== "\r") {
           val += text[i++];
@@ -48,15 +62,11 @@ function parseCSV(text) {
         row.push(val);
       }
       if (i < n && text[i] === ",") { i++; continue; }
-      break; // end of row
+      break;
     }
-    // consume line ending
     if (i < n && text[i] === "\r") i++;
     if (i < n && text[i] === "\n") i++;
-
-    if (row.length > 1 || (row.length === 1 && row[0] !== "")) {
-      rows.push(row);
-    }
+    if (row.length > 1 || (row.length === 1 && row[0] !== "")) rows.push(row);
   }
   return rows;
 }
@@ -72,190 +82,356 @@ function csvToObjects(text) {
   });
 }
 
-// ── Fetch helpers ─────────────────────────────────────────────────────────
-
+// ── FETCH ─────────────────────────────────────────────────────────────────
 async function fetchText(url) {
-  const resp = await fetch(url + "?_=" + Date.now()); // bust cache
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} loading ${url}`);
-  return resp.text();
+  const r = await fetch(url + "?_=" + Date.now()); // cache-bust
+  if (!r.ok) throw new Error(`HTTP ${r.status} — ${url}`);
+  return r.text();
 }
 
-async function fetchJSON(url) {
-  const resp = await fetch(url + "?_=" + Date.now());
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} loading ${url}`);
-  return resp.json();
+async function fetchJSONWithMeta(url) {
+  const r = await fetch(url + "?_=" + Date.now());
+  if (!r.ok) throw new Error(`HTTP ${r.status} — ${url}`);
+  const lastModified = r.headers.get("Last-Modified") || "";
+  const data = await r.json();
+  return { data, lastModified };
 }
 
-// ── Rendering ─────────────────────────────────────────────────────────────
-
-function confidenceBadge(conf) {
-  if (!conf) return "";
-  const cls = conf === "low" ? "tag-low" : conf === "medium" ? "tag-medium" : "tag-high";
-  return `<span class="${cls}">${esc(conf)}</span>`;
-}
-
-function mapsLink(lat, lon) {
-  if (!lat || !lon) return "";
-  const url = `https://www.google.com/maps?q=${encodeURIComponent(lat)},${encodeURIComponent(lon)}`;
-  return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="btn-secondary"
-            style="padding:3px 8px;font-size:0.75rem;display:inline-block;">📍 Map</a>`;
-}
-
+// ── HELPERS ───────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function hasSuggestion(row) {
   return !!(row.suggested_latitude && row.suggested_longitude);
 }
 
-function renderStats(rows, buildStats) {
-  const withSuggestion = rows.filter(hasSuggestion).length;
-  const withoutSuggestion = rows.length - withSuggestion;
-
-  const items = [
-    { label: "Rows needing review", value: rows.length },
-    { label: "With suggested coords", value: withSuggestion },
-    { label: "No suggestion yet",   value: withoutSuggestion },
-    { label: "Features in map",     value: buildStats ? (buildStats.features ?? "—") : "—" },
-  ];
-
-  return items.map(({ label, value }) => `
-    <div class="stat-card">
-      <div class="stat-label">${esc(label)}</div>
-      <div class="stat-value">${esc(String(value))}</div>
-    </div>`).join("");
+function fmtNum(n) {
+  if (n == null) return "—";
+  return Number(n).toLocaleString();
 }
 
-function renderToolbar(rows) {
-  const withSug = rows.filter(hasSuggestion);
-  const allNums = withSug.map(r => r.row).filter(Boolean).join(", ");
-
-  return `
-    <button class="btn-copy" onclick="copyText(${JSON.stringify(allNums)}, this)"
-            title="Copy all row numbers that have suggested coordinates">
-      📋 Copy all suggestion row numbers
-    </button>
-    <a class="btn-secondary" href="${esc(GITHUB_PRS_URL)}" target="_blank" rel="noopener noreferrer">
-      🔀 Open Pull Requests
-    </a>
-    <a class="btn-secondary" href="${esc(GITHUB_ACTIONS_URL)}" target="_blank" rel="noopener noreferrer">
-      ⚙️ Open GitHub Actions
-    </a>
-    <button class="btn-secondary" onclick="location.reload()">🔄 Refresh</button>`;
+function fmtDate(httpDateStr) {
+  if (!httpDateStr) return "";
+  try {
+    return new Date(httpDateStr).toLocaleString(undefined, {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  } catch { return ""; }
 }
-
-function renderTable(rows) {
-  if (rows.length === 0) {
-    return `<div class="empty-state">
-      <div class="big">✅</div>
-      <strong>No rows need geocode review.</strong><br>
-      All coordinates are filled or no review rows were generated on the last build.
-    </div>`;
-  }
-
-  const header = `
-    <thead><tr>
-      <th>Row</th>
-      <th>Event</th>
-      <th>Expedition</th>
-      <th>Year</th>
-      <th>Address</th>
-      <th>City / State / Country</th>
-      <th>Reason</th>
-      <th>Sug. Lat</th>
-      <th>Sug. Lon</th>
-      <th>Confidence</th>
-      <th>Suggested Address</th>
-      <th>Source</th>
-      <th>Map</th>
-      <th></th>
-    </tr></thead>`;
-
-  const bodyRows = rows.map(r => {
-    const location = [r.city, r.state || r.non_us_state, r.country]
-      .filter(Boolean).join(", ");
-    const sug = hasSuggestion(r);
-    const noSug = `<span class="no-suggestion">—</span>`;
-
-    return `<tr>
-      <td><strong>${esc(r.row)}</strong></td>
-      <td>${esc(r.event)}</td>
-      <td>${esc(r.expedition)}</td>
-      <td>${esc(r.year)}</td>
-      <td class="address-cell">${esc(r.address)}</td>
-      <td>${esc(location)}</td>
-      <td class="reason-cell">${esc(r.reason)}</td>
-      <td>${sug ? esc(r.suggested_latitude) : noSug}</td>
-      <td>${sug ? esc(r.suggested_longitude) : noSug}</td>
-      <td>${sug ? confidenceBadge(r.suggested_confidence) : noSug}</td>
-      <td class="address-cell">${sug ? esc(r.suggested_address) : noSug}</td>
-      <td style="font-size:0.75rem;color:#666">${sug ? esc(r.suggested_source) : noSug}</td>
-      <td>${mapsLink(r.suggested_latitude, r.suggested_longitude)}</td>
-      <td>
-        ${sug
-          ? `<button class="btn-copy" style="padding:3px 8px;font-size:0.75rem"
-               onclick="copyText(${JSON.stringify(r.row)}, this)"
-               title="Copy row number">📋 ${esc(r.row)}</button>`
-          : ""}
-      </td>
-    </tr>`;
-  }).join("");
-
-  return `<div class="table-wrap"><table>${header}<tbody>${bodyRows}</tbody></table></div>`;
-}
-
-// ── Copy helper ───────────────────────────────────────────────────────────
 
 async function copyText(text, btn) {
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
-    const orig = btn.textContent;
-    btn.textContent = "✅ Copied!";
-    setTimeout(() => { btn.textContent = orig; }, 1800);
+    const orig = btn.innerHTML;
+    btn.innerHTML = "✅ Copied!";
+    setTimeout(() => { btn.innerHTML = orig; }, 1800);
   } catch {
     prompt("Copy this text:", text);
   }
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────
+// ── STATUS INDICATOR ──────────────────────────────────────────────────────
+function setStatus(cls, label) {
+  const dot  = document.getElementById("status-dot");
+  const text = document.getElementById("status-text");
+  if (dot)  { dot.className = "status-dot " + cls; }
+  if (text) { text.textContent = label; }
+}
 
+// ── STATS GRID ────────────────────────────────────────────────────────────
+function renderStats(rows, stats) {
+  const pending     = rows.length;
+  const withSug     = rows.filter(hasSuggestion).length;
+  const noSug       = pending - withSug;
+  const features    = stats?.features ?? null;
+  const autoFilled  = stats?.coordinate_rows_updated ?? null;
+  const stillMiss   = stats?.skipped_missing_latlon ?? null;
+
+  const cards = [
+    { icon: "🗺", label: "Locations on Map",       value: fmtNum(features),   cls: "hi" },
+    { icon: pending === 0 ? "✅" : "⚠️",
+      label: "Pending Review",                      value: fmtNum(pending),    cls: pending === 0 ? "ok" : "warn" },
+    { icon: "📍", label: "Has Coordinates Suggested", value: fmtNum(withSug), cls: withSug > 0 ? "warn" : "" },
+    { icon: "❓", label: "No Suggestion Yet",       value: fmtNum(noSug),      cls: "" },
+    { icon: "⚡", label: "Auto-Filled This Build",  value: fmtNum(autoFilled), cls: "" },
+    { icon: "🚫", label: "Still Missing Coords",   value: fmtNum(stillMiss),  cls: stillMiss > 0 ? "warn" : "" },
+  ];
+
+  return cards.map(({ icon, label, value, cls }) => `
+    <div class="stat-card ${cls}">
+      <div class="stat-icon">${icon}</div>
+      <div class="stat-value">${esc(value)}</div>
+      <div class="stat-label">${esc(label)}</div>
+    </div>`).join("");
+}
+
+// ── FILE ACTIONS ──────────────────────────────────────────────────────────
+function renderFileActions() {
+  const items = [
+    { href: CSV_DOWNLOAD_URL, icon: "⬇", label: "Master CSV",             dl: "Master_Clinic_ImpactMap.csv" },
+    { href: GEO_DOWNLOAD_URL, icon: "⬇", label: "Map GeoJSON",            dl: "ImpactMap_Dataset.geojson" },
+    { href: `${DATA_BASE}/output/geocode_review.csv`, icon: "⬇", label: "Geocode Review CSV", dl: "geocode_review.csv" },
+    { href: `${DATA_BASE}/output/build_stats.json`,   icon: "⬇", label: "Build Stats JSON",   dl: "build_stats.json" },
+  ];
+  return items.map(a => `
+    <a href="${esc(a.href)}" class="action-link" download="${esc(a.dl)}">
+      <span class="action-icon">${a.icon}</span>
+      <span>${esc(a.label)}</span>
+    </a>`).join("");
+}
+
+// ── GITHUB LINKS ──────────────────────────────────────────────────────────
+function renderGithubLinks() {
+  const items = [
+    { href: GITHUB_UPLOAD_URL, icon: "⬆", label: "Upload Updated CSV",   primary: true },
+    { href: GITHUB_CSV_URL,    icon: "📄", label: "View CSV on GitHub" },
+    { href: GITHUB_PRS_URL,    icon: "🔀", label: "Open Pull Requests" },
+    { href: GITHUB_ACTIONS_URL,icon: "⚙", label: "Open GitHub Actions" },
+  ];
+  return items.map(a => `
+    <a href="${esc(a.href)}" class="action-link${a.primary ? " primary" : ""}"
+       target="_blank" rel="noopener noreferrer">
+      <span class="action-icon">${a.icon}</span>
+      <span>${esc(a.label)}</span>
+    </a>`).join("");
+}
+
+// ── CONFIDENCE BADGE ──────────────────────────────────────────────────────
+function confidenceBadge(conf) {
+  if (!conf) return "";
+  const cls = ["low", "medium", "high", "exact"].includes(conf) ? conf : "unknown";
+  return `<span class="badge ${cls}">${esc(conf)}</span>`;
+}
+
+// ── REVIEW CARD ───────────────────────────────────────────────────────────
+function renderCard(r) {
+  const sug      = hasSuggestion(r);
+  const location = [r.city, r.state || r.non_us_state, r.country].filter(Boolean).join(", ");
+  const coords   = sug ? `${r.suggested_latitude}, ${r.suggested_longitude}` : "";
+  const mapsUrl  = sug
+    ? `https://www.google.com/maps?q=${encodeURIComponent(r.suggested_latitude)},${encodeURIComponent(r.suggested_longitude)}`
+    : "";
+
+  const sugBlock = sug ? `
+    <div class="sug-block">
+      <div class="sug-hdr">
+        📍 Suggested Coordinates
+        ${confidenceBadge(r.suggested_confidence)}
+        <span class="sug-source">${esc(r.suggested_source)}</span>
+      </div>
+      <div class="sug-addr">${esc(r.suggested_address)}</div>
+      <div class="sug-coords">${esc(coords)}</div>
+      <div class="sug-actions">
+        <a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
+           class="btn btn-maps">📍 Open in Google Maps</a>
+        <button class="btn btn-sm-copy"
+                onclick="copyText(${JSON.stringify(r.row)}, this)"
+                title="Copy CSV row number">📋 Copy row #${esc(r.row)}</button>
+        <button class="btn btn-sm-copy"
+                onclick="copyText(${JSON.stringify(coords)}, this)"
+                title="Copy suggested coordinates">📋 Copy coords</button>
+      </div>
+    </div>` : "";
+
+  return `
+    <div class="review-card ${sug ? "has-sug" : "no-sug"}">
+      <div class="card-hdr">
+        <span class="row-chip ${sug ? "sug" : ""}">ROW ${esc(r.row)}</span>
+        <span class="card-event">Event&nbsp;${esc(r.event)} · Exp.&nbsp;${esc(r.expedition)}</span>
+        <span class="card-location">${esc(location) || "<em>No location</em>"}</span>
+        <span class="card-year">${esc(r.year)}</span>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="field-label">Original Address</div>
+          <div class="field-value">${
+            r.address
+              ? esc(r.address)
+              : '<span class="no-addr">No street address on record</span>'
+          }</div>
+        </div>
+        <div>
+          <div class="field-label">Why Not Auto-Filled</div>
+          <div class="field-reason">${esc(r.reason)}</div>
+        </div>
+        ${sugBlock}
+      </div>
+    </div>`;
+}
+
+// ── FILTER + SEARCH ───────────────────────────────────────────────────────
+function applyFiltersAndSearch() {
+  const listEl    = document.getElementById("review-list");
+  const countEl   = document.getElementById("filter-count");
+  const copyAllEl = document.getElementById("copy-all-btn");
+
+  let visible = ALL_ROWS;
+
+  if (currentFilter === "with-suggestion") {
+    visible = visible.filter(hasSuggestion);
+  } else if (currentFilter === "no-suggestion") {
+    visible = visible.filter(r => !hasSuggestion(r));
+  }
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    visible = visible.filter(r =>
+      [r.city, r.address, r.event, r.expedition, r.state,
+       r.non_us_state, r.country, r.suggested_address]
+        .some(f => (f || "").toLowerCase().includes(q))
+    );
+  }
+
+  // ── Empty: no rows at all ──
+  if (ALL_ROWS.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">✅</div>
+        <div class="empty-title">All locations are mapped!</div>
+        <p class="empty-sub">No rows need geocode review right now.
+          The build workflow updates this page automatically after each
+          upload — check back after the next CSV update.</p>
+      </div>`;
+    countEl.style.display = "none";
+    copyAllEl.style.display = "none";
+    return;
+  }
+
+  // ── Empty: filter returned nothing ──
+  if (visible.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty-state neutral">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title" style="color:var(--text-muted)">No rows match your filter</div>
+        <p class="empty-sub">Try a different filter option or clear the search box.</p>
+      </div>`;
+    countEl.style.display = "none";
+    copyAllEl.style.display = "none";
+    return;
+  }
+
+  // ── Render cards ──
+  listEl.innerHTML = `<div class="review-list">${visible.map(renderCard).join("")}</div>`;
+
+  // Filter count line
+  if (visible.length !== ALL_ROWS.length) {
+    countEl.textContent = `Showing ${visible.length} of ${ALL_ROWS.length} row${ALL_ROWS.length !== 1 ? "s" : ""}`;
+    countEl.style.display = "block";
+  } else {
+    countEl.style.display = "none";
+  }
+
+  // Copy-all button (only when suggestion rows are visible)
+  const sugVisible = visible.filter(hasSuggestion);
+  if (sugVisible.length > 0) {
+    const nums = sugVisible.map(r => r.row).filter(Boolean).join(", ");
+    copyAllEl.style.display = "inline-flex";
+    copyAllEl.onclick = e => copyText(nums, e.currentTarget);
+    copyAllEl.textContent = `📋 Copy row numbers (${sugVisible.length})`;
+  } else {
+    copyAllEl.style.display = "none";
+  }
+}
+
+// ── FILTER WIRING ─────────────────────────────────────────────────────────
+function initFilters() {
+  document.querySelectorAll(".filter-pills .pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".filter-pills .pill").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentFilter = btn.dataset.filter;
+      applyFiltersAndSearch();
+    });
+  });
+
+  const searchEl = document.getElementById("search-input");
+  if (searchEl) {
+    searchEl.addEventListener("input", () => {
+      searchQuery = searchEl.value.trim();
+      applyFiltersAndSearch();
+    });
+  }
+}
+
+// ── QUEUE BADGE ───────────────────────────────────────────────────────────
+function setQueueBadge(n) {
+  const el = document.getElementById("queue-badge");
+  if (!el) return;
+  el.textContent = n;
+  el.className = "queue-badge " + (n === 0 ? "zero" : "some");
+}
+
+// ── FOOTER ────────────────────────────────────────────────────────────────
+function renderFooter(stats, lastModified) {
+  const el = document.getElementById("footer-build");
+  if (!el) return;
+  const parts = [];
+  if (stats?.features != null) parts.push(`${fmtNum(stats.features)} features`);
+  if (lastModified)            parts.push(`Built ${fmtDate(lastModified)}`);
+  el.textContent = parts.join(" · ");
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────
 async function init() {
-  const statusEl  = document.getElementById("status-msg");
-  const statsEl   = document.getElementById("stats-bar");
-  const toolbarEl = document.getElementById("toolbar");
-  const tableEl   = document.getElementById("review-table");
-  const tsEl      = document.getElementById("last-updated");
+  const loadingEl   = document.getElementById("loading-msg");
+  const dashboardEl = document.getElementById("dashboard");
 
   try {
-    const [csvText, buildStats] = await Promise.allSettled([
+    const [csvResult, statsResult] = await Promise.allSettled([
       fetchText(REVIEW_CSV_URL),
-      fetchJSON(BUILD_STATS_URL),
+      fetchJSONWithMeta(BUILD_STATS_URL),
     ]);
 
-    if (csvText.status === "rejected") {
-      throw new Error("Could not load geocode_review.csv — " + csvText.reason);
+    if (csvResult.status === "rejected") {
+      throw new Error(
+        "Could not load geocode_review.csv.\n" + csvResult.reason +
+        "\n\nMake sure GitHub Pages is configured to serve from the " +
+        "repository root (not the docs/ folder). See the comment at the " +
+        "bottom of index.html for setup instructions."
+      );
     }
 
-    const rows = csvToObjects(csvText.value);
-    const stats = buildStats.status === "fulfilled" ? buildStats.value : null;
+    ALL_ROWS = csvToObjects(csvResult.value);
+    const stats        = statsResult.status === "fulfilled" ? statsResult.value.data         : null;
+    const lastModified = statsResult.status === "fulfilled" ? statsResult.value.lastModified : "";
 
-    statusEl.style.display = "none";
-    statsEl.innerHTML  = renderStats(rows, stats);
-    toolbarEl.innerHTML = renderToolbar(rows);
-    tableEl.innerHTML  = renderTable(rows);
+    // ── Populate sections ──
+    document.getElementById("stats-grid").innerHTML   = renderStats(ALL_ROWS, stats);
+    document.getElementById("file-actions").innerHTML = renderFileActions();
+    document.getElementById("github-links").innerHTML = renderGithubLinks();
 
-    if (stats) {
-      tsEl.textContent = `Last build: ${stats.features ?? "?"} features · ${rows.length} row(s) pending review`;
+    // Build meta line
+    const metaEl = document.getElementById("build-meta");
+    if (metaEl && lastModified) {
+      metaEl.textContent = `Last build: ${fmtDate(lastModified)}`;
     }
+
+    // Status + badge + footer
+    const n = ALL_ROWS.length;
+    setStatus(n === 0 ? "ok" : "warn", n === 0 ? "All clear" : `${n} row${n !== 1 ? "s" : ""} pending`);
+    setQueueBadge(n);
+    renderFooter(stats, lastModified);
+
+    // Show dashboard
+    loadingEl.style.display  = "none";
+    dashboardEl.style.display = "block";
+
+    // Filters and initial render
+    initFilters();
+    applyFiltersAndSearch();
+
   } catch (err) {
-    statusEl.className = "error-msg";
-    statusEl.textContent = "Error loading data: " + err.message;
+    loadingEl.innerHTML = `
+      <div class="error-state">
+        <strong>Could not load dashboard data.</strong>
+        <span style="white-space:pre-wrap">${esc(err.message)}</span>
+      </div>`;
+    setStatus("err", "Error loading data");
     console.error(err);
   }
 }
