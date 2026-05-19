@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAM Impact Map — Geocode Review</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>RAM Impact Map — Geocode Review</h1>
+  <p>Read-only review dashboard · Updated automatically after each build</p>
+</header>
+
+<main>
+
+  <div class="notice">
+    <strong>This page is read-only.</strong>
+    Rows shown here could not be placed on the map automatically because their
+    coordinates were missing or the geocoding result was not confident enough to
+    approve without a human check.<br><br>
+    <strong>To approve suggested coordinates:</strong> When rows have suggestions,
+    the build workflow automatically opens a <strong>Pull Request</strong> on GitHub
+    with those coordinates ready to apply. Review the PR, confirm the suggested
+    address looks correct, and <strong>merge it</strong> if it does.<br><br>
+    Only GitHub users with <strong>repository write access</strong> can merge
+    approval pull requests. If a suggestion looks wrong, close the PR and correct
+    the CSV file manually.
+  </div>
+
+  <!-- Summary counts -->
+  <div id="stats-bar" class="stats-bar"></div>
+
+  <!-- Action buttons -->
+  <div id="toolbar" class="toolbar"></div>
+
+  <!-- Loading / error message -->
+  <div id="status-msg">Loading review data…</div>
+
+  <!-- Review table (injected by app.js) -->
+  <div id="review-table"></div>
+
+  <footer>
+    <span id="last-updated"></span>
+    &nbsp;·&nbsp;
+    <a href="../../output/geocode_review.csv">Download geocode_review.csv</a>
+    &nbsp;·&nbsp;
+    <a href="../../output/build_stats.json">Download build_stats.json</a>
+  </footer>
+
+</main>
+
+<!--
+  GITHUB PAGES SETUP NOTES
+  ========================
+  This page fetches data files using relative paths:
+    ../../output/geocode_review.csv
+    ../../output/build_stats.json
+
+  This works when GitHub Pages is configured to serve from the repository ROOT:
+    GitHub repo → Settings → Pages → Source → Deploy from branch
+    Branch: main (or staging)   Folder: / (root)
+
+  The dashboard URL will then be:
+    https://<owner>.github.io/<repo>/docs/geocode-review/
+
+  If you configure Pages to serve from the docs/ folder instead, the output/
+  files will not be accessible via relative path. In that case, edit app.js
+  and change DATA_BASE to the raw GitHub content URL for your repo:
+    const DATA_BASE = "https://raw.githubusercontent.com/ITDeptAdmin/ImpactMap/main";
+-->
+
+<script src="app.js"></script>
+</body>
+</html>

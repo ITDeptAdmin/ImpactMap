@@ -1,0 +1,168 @@
+name: Create Geocode Review PR
+
+# Runs automatically after "Build Impact Map GeoJSON" completes successfully.
+# Reads output/geocode_review.csv from the just-built branch.
+# If any rows have suggested coordinates, creates a new branch and opens a
+# pull request so a human with write access can review and merge them.
+#
+# No auto-merge. No secrets exposed. Uses only the built-in GITHUB_TOKEN.
+# The PR targets the same branch (main or staging) that triggered the build.
+
+on:
+  workflow_run:
+    workflows: ["Build Impact Map GeoJSON"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    # Only run when the build succeeded, and not for the auto-commit loop.
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch that triggered the build
+        uses: actions/checkout@v4
+        with:
+          # Check out the triggering commit first, then pull the latest
+          # (the build job auto-commits updated files after this SHA).
+          ref: ${{ github.event.workflow_run.head_sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Pull latest commit from branch (includes build auto-commit)
+        run: |
+          git fetch origin ${{ github.event.workflow_run.head_branch }}
+          git reset --hard origin/${{ github.event.workflow_run.head_branch }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Apply geocode suggestions to CSV
+        id: apply
+        env:
+          BRANCH_NAME: ${{ github.event.workflow_run.head_branch }}
+          MAPBOX_GEOCODING_TOKEN: ${{ secrets.MAPBOX_GEOCODING_TOKEN }}
+          GEOCODE_REVIEW_FILE: output/geocode_review.csv
+          BUILD_STATS_FILE: output/build_stats.json
+        run: |
+          python scripts/apply_geocode_suggestions.py
+
+          APPLIED=$(python -c "
+          import json
+          d = json.load(open('output/geocode_suggestions_applied.json', encoding='utf-8'))
+          print(len(d.get('applied', [])))
+          ")
+          echo "applied_count=$APPLIED" >> "$GITHUB_OUTPUT"
+
+          if [ "$APPLIED" = "0" ]; then
+            echo "No suggestions to apply. No PR will be created."
+          else
+            echo "Suggestions applied: $APPLIED"
+          fi
+
+      - name: Create suggestion branch and open pull request
+        if: steps.apply.outputs.applied_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%d-%H%M")
+          BRANCH="geocode-suggestions/${TIMESTAMP}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+
+          # Stage all files that the apply script may have modified.
+          git add data/Master_Clinic_ImpactMap.csv \
+                  output/ImpactMap_Dataset.geojson \
+                  output/geocode_review.csv \
+                  output/build_stats.json \
+                  logs/
+
+          if git diff --staged --quiet; then
+            echo "No staged changes after applying suggestions. Skipping PR."
+            exit 0
+          fi
+
+          git commit -m "Apply geocode coordinate suggestions for human review"
+          git push origin "$BRANCH"
+
+          # Build PR body from the suggestions JSON.
+          PR_BODY=$(python - <<'PY'
+import json, os, sys
+
+path = "output/geocode_suggestions_applied.json"
+if not os.path.exists(path):
+    print("ERROR: suggestions JSON not found", file=sys.stderr)
+    sys.exit(1)
+
+data = json.load(open(path, encoding="utf-8"))
+applied = data.get("applied", [])
+skipped = data.get("skipped", [])
+base = os.environ.get("BASE_BRANCH", "main")
+
+lines = []
+lines.append("## Geocode Coordinate Suggestions — Pending Human Review")
+lines.append("")
+lines.append("> ⚠️ **These coordinates were not auto-approved by the build script.**")
+lines.append("> The geocoding confidence was too low or the existing data was ambiguous.")
+lines.append(">")
+lines.append("> **What to do:**")
+lines.append("> - Review each row below. Check the suggested address and coordinates.")
+lines.append("> - Open the Google Maps link (lat, lon) to visually confirm the location.")
+lines.append("> - If everything looks correct → **merge this PR**.")
+lines.append("> - If anything looks wrong → **close this PR** without merging, then manually correct the CSV.")
+lines.append(">")
+lines.append("> Only GitHub users with repository write access can merge this PR.")
+lines.append("")
+lines.append(f"**Target branch:** `{base}`  ")
+lines.append(f"**Rows with suggestions applied:** {len(applied)}  ")
+if skipped:
+    lines.append(f"**Rows skipped (already had coordinates):** {len(skipped)}")
+lines.append("")
+
+lines.append("### Suggested coordinates")
+lines.append("")
+lines.append("| Row | Event | Location | Original Address | Suggested Address | Confidence | Lat | Lon | Map |")
+lines.append("|-----|-------|----------|-----------------|-------------------|------------|-----|-----|-----|")
+
+for a in applied:
+    loc = ", ".join(p for p in [a.get("city",""), a.get("state",""), a.get("country","")] if p)
+    addr = " ".join((a.get("address") or "").split())   # collapse newlines
+    sug_addr = (a.get("suggested_address") or "").strip()
+    conf = a.get("suggested_confidence", "")
+    lat = a.get("suggested_latitude", "")
+    lon = a.get("suggested_longitude", "")
+    row = a.get("csv_row", "")
+    event = a.get("event", "")
+    maps_url = f"https://www.google.com/maps?q={lat},{lon}" if lat and lon else ""
+    maps_link = f"[View]({maps_url})" if maps_url else ""
+    lines.append(f"| {row} | {event} | {loc} | {addr} | {sug_addr} | {conf} | {lat} | {lon} | {maps_link} |")
+
+lines.append("")
+lines.append("---")
+lines.append("_Auto-generated by the RAM Impact Map geocode review workflow. Do not auto-merge._")
+
+print("\n".join(lines))
+PY
+)
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base "$BASE_BRANCH" \
+            --head "$BRANCH" \
+            --title "Geocode suggestions pending review (${TIMESTAMP})" \
+            --body "$PR_BODY"
+
+          echo "Pull request created targeting: $BASE_BRANCH"
