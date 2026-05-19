@@ -1,12 +1,12 @@
-// RAM Impact Map — Control Center Dashboard
-// ==========================================
+// RAM Impact Map — Update Center Dashboard
+// =========================================
 //
 // !! REPO-SPECIFIC VALUES TO UPDATE !!
 // ------------------------------------
-// 1. GITHUB_REPO  — set to your actual "owner/repo" string
+// 1. GITHUB_REPO   — set to your actual "owner/repo" string
 // 2. GITHUB_BRANCH — branch that holds the live source files
-// 3. DATA_BASE    — change to raw.githubusercontent.com URL if Pages
-//                   serves from docs/ instead of repo root
+// 3. DATA_BASE     — change to raw.githubusercontent.com URL if Pages
+//                    serves from docs/ instead of repo root
 //
 // GitHub Pages must serve from the REPO ROOT for relative paths to work:
 //   Settings → Pages → Source: Deploy from branch → Folder: / (root)
@@ -15,13 +15,13 @@
 
 // ── CONFIG ────────────────────────────────────────────────────────────────
 const DATA_BASE    = "../..";
-const GITHUB_REPO   = "ITDeptAdmin/ImpactMap";   // !! update this !!
-const GITHUB_BRANCH = "staging";                  // !! update if needed !!
+const GITHUB_REPO   = "ITDeptAdmin/ImpactMap";
+const GITHUB_BRANCH = "staging";
 
-const REVIEW_CSV_URL    = `${DATA_BASE}/output/geocode_review.csv`;
-const BUILD_STATS_URL   = `${DATA_BASE}/output/build_stats.json`;
-const CSV_DOWNLOAD_URL  = `${DATA_BASE}/data/Master_Clinic_ImpactMap.csv`;
-const GEO_DOWNLOAD_URL  = `${DATA_BASE}/output/ImpactMap_Dataset.geojson`;
+const REVIEW_CSV_URL   = `${DATA_BASE}/output/geocode_review.csv`;
+const BUILD_STATS_URL  = `${DATA_BASE}/output/build_stats.json`;
+const CSV_DOWNLOAD_URL = `${DATA_BASE}/data/Master_Clinic_ImpactMap.csv`;
+const GEO_DOWNLOAD_URL = `${DATA_BASE}/output/ImpactMap_Dataset.geojson`;
 
 const GITHUB_BASE        = `https://github.com/${GITHUB_REPO}`;
 const GITHUB_ACTIONS_URL = `${GITHUB_BASE}/actions`;
@@ -29,24 +29,24 @@ const GITHUB_PRS_URL     = `${GITHUB_BASE}/pulls`;
 const GITHUB_CSV_URL     = `${GITHUB_BASE}/blob/${GITHUB_BRANCH}/data/Master_Clinic_ImpactMap.csv`;
 const GITHUB_UPLOAD_URL  = `${GITHUB_BASE}/upload/${GITHUB_BRANCH}/data`;
 
+// Search URL for open geocode review PRs
+const REVIEW_PRS_SEARCH_URL = `${GITHUB_BASE}/pulls?q=is%3Aopen+is%3Apr+geocode+suggestion`;
+
 // ── STATE ─────────────────────────────────────────────────────────────────
 let ALL_ROWS      = [];
 let currentFilter = "all";
 let searchQuery   = "";
 
 // ── CSV PARSER ────────────────────────────────────────────────────────────
-// Handles RFC 4180 CSV including quoted fields with embedded newlines.
 function parseCSV(text) {
   const rows = [];
   let i = 0;
   const n = text.length;
-
   while (i < n) {
     const row = [];
     while (i < n) {
       if (text[i] === '"') {
-        let val = "";
-        i++;
+        let val = ""; i++;
         while (i < n) {
           if (text[i] === '"') {
             if (text[i + 1] === '"') { val += '"'; i += 2; }
@@ -84,7 +84,7 @@ function csvToObjects(text) {
 
 // ── FETCH ─────────────────────────────────────────────────────────────────
 async function fetchText(url) {
-  const r = await fetch(url + "?_=" + Date.now()); // cache-bust
+  const r = await fetch(url + "?_=" + Date.now());
   if (!r.ok) throw new Error(`HTTP ${r.status} — ${url}`);
   return r.text();
 }
@@ -139,27 +139,59 @@ async function copyText(text, btn) {
 function setStatus(cls, label) {
   const dot  = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
-  if (dot)  { dot.className = "status-dot " + cls; }
-  if (text) { text.textContent = label; }
+  if (dot)  dot.className = "status-dot " + cls;
+  if (text) text.textContent = label;
 }
 
-// ── STATS GRID ────────────────────────────────────────────────────────────
-function renderStats(rows, stats) {
-  const pending     = rows.length;
-  const withSug     = rows.filter(hasSuggestion).length;
-  const noSug       = pending - withSug;
-  const features    = stats?.features ?? null;
-  const autoFilled  = stats?.coordinate_rows_updated ?? null;
-  const stillMiss   = stats?.skipped_missing_latlon ?? null;
+// ── MAIN STATS (3 primary cards) ──────────────────────────────────────────
+function renderMainStats(rows, stats, lastModified) {
+  const pending  = rows.length;
+  const features = stats?.features ?? null;
+  const builtAt  = fmtDate(lastModified);
 
   const cards = [
-    { icon: "🗺", label: "Locations on Map",       value: fmtNum(features),   cls: "hi" },
-    { icon: pending === 0 ? "✅" : "⚠️",
-      label: "Pending Review",                      value: fmtNum(pending),    cls: pending === 0 ? "ok" : "warn" },
-    { icon: "📍", label: "Has Coordinates Suggested", value: fmtNum(withSug), cls: withSug > 0 ? "warn" : "" },
-    { icon: "❓", label: "No Suggestion Yet",       value: fmtNum(noSug),      cls: "" },
-    { icon: "⚡", label: "Auto-Filled This Build",  value: fmtNum(autoFilled), cls: "" },
-    { icon: "🚫", label: "Still Missing Coords",   value: fmtNum(stillMiss),  cls: stillMiss > 0 ? "warn" : "" },
+    {
+      icon: "🗺",
+      label: "Locations on Map",
+      value: fmtNum(features),
+      cls: "hi",
+    },
+    {
+      icon: pending === 0 ? "✅" : "⚠️",
+      label: "Pending Review",
+      value: fmtNum(pending),
+      cls: pending === 0 ? "ok" : "warn",
+    },
+    {
+      icon: "🕒",
+      label: "Last Build",
+      value: builtAt || "—",
+      cls: "",
+      small: true,
+    },
+  ];
+
+  return cards.map(({ icon, label, value, cls, small }) => `
+    <div class="stat-card ${cls}">
+      <div class="stat-icon">${icon}</div>
+      <div class="stat-value${small ? " stat-value-sm" : ""}">${esc(value)}</div>
+      <div class="stat-label">${esc(label)}</div>
+    </div>`).join("");
+}
+
+// ── ADVANCED STATS (4 detail cards) ───────────────────────────────────────
+function renderAdvancedStats(rows, stats) {
+  const pending    = rows.length;
+  const withSug    = rows.filter(hasSuggestion).length;
+  const noSug      = pending - withSug;
+  const autoFilled = stats?.coordinate_rows_updated ?? null;
+  const stillMiss  = stats?.skipped_missing_latlon  ?? null;
+
+  const cards = [
+    { icon: "📍", label: "Has Suggestion",        value: fmtNum(withSug),    cls: withSug > 0 ? "warn" : "" },
+    { icon: "❓", label: "No Suggestion Yet",      value: fmtNum(noSug),      cls: "" },
+    { icon: "⚡", label: "Auto-Filled This Build", value: fmtNum(autoFilled), cls: "" },
+    { icon: "🚫", label: "Still Missing Coords",  value: fmtNum(stillMiss),  cls: stillMiss > 0 ? "warn" : "" },
   ];
 
   return cards.map(({ icon, label, value, cls }) => `
@@ -170,35 +202,71 @@ function renderStats(rows, stats) {
     </div>`).join("");
 }
 
-// ── FILE ACTIONS ──────────────────────────────────────────────────────────
-function renderFileActions() {
-  const items = [
-    { href: CSV_DOWNLOAD_URL, icon: "⬇", label: "Master CSV",             dl: "Master_Clinic_ImpactMap.csv" },
-    { href: GEO_DOWNLOAD_URL, icon: "⬇", label: "Map GeoJSON",            dl: "ImpactMap_Dataset.geojson" },
-    { href: `${DATA_BASE}/output/geocode_review.csv`, icon: "⬇", label: "Geocode Review CSV", dl: "geocode_review.csv" },
-    { href: `${DATA_BASE}/output/build_stats.json`,   icon: "⬇", label: "Build Stats JSON",   dl: "build_stats.json" },
-  ];
-  return items.map(a => `
-    <a href="${esc(a.href)}" class="action-link" download="${esc(a.dl)}">
-      <span class="action-icon">${a.icon}</span>
-      <span>${esc(a.label)}</span>
-    </a>`).join("");
+// ── PRIMARY ACTIONS ───────────────────────────────────────────────────────
+function renderPrimaryActions(rows) {
+  const pending = rows.length;
+  const withSug = rows.filter(hasSuggestion).length;
+
+  let html = `
+    <div class="primary-btns">
+      <a href="${esc(CSV_DOWNLOAD_URL)}"
+         class="primary-btn primary-btn-download"
+         download="Master_Clinic_ImpactMap.csv">
+        <span class="primary-btn-icon">⬇</span>
+        <div>
+          <div class="primary-btn-label">Download Current CSV</div>
+          <div class="primary-btn-sub">Master_Clinic_ImpactMap.csv</div>
+        </div>
+      </a>
+      <a href="${esc(GITHUB_UPLOAD_URL)}"
+         class="primary-btn primary-btn-upload"
+         target="_blank" rel="noopener noreferrer">
+        <span class="primary-btn-icon">⬆</span>
+        <div>
+          <div class="primary-btn-label">Upload Updated CSV</div>
+          <div class="primary-btn-sub">Opens GitHub file upload</div>
+        </div>
+      </a>`;
+
+  if (pending > 0) {
+    const label = withSug > 0
+      ? `Open Review Pull Requests (${withSug} suggestion${withSug !== 1 ? "s" : ""})`
+      : `Open Review Pull Requests (${pending} pending)`;
+    html += `
+      <a href="${esc(REVIEW_PRS_SEARCH_URL)}"
+         class="primary-btn primary-btn-prs"
+         target="_blank" rel="noopener noreferrer">
+        <span class="primary-btn-icon">🔀</span>
+        <div>
+          <div class="primary-btn-label">${esc(label)}</div>
+          <div class="primary-btn-sub">Review and merge or close PRs on GitHub</div>
+        </div>
+      </a>`;
+  }
+
+  html += `</div>`;
+  return html;
 }
 
-// ── GITHUB LINKS ──────────────────────────────────────────────────────────
-function renderGithubLinks() {
+// ── ADVANCED ACTIONS (technical links) ────────────────────────────────────
+function renderAdvancedActions() {
   const items = [
-    { href: GITHUB_UPLOAD_URL, icon: "⬆", label: "Upload Updated CSV",   primary: true },
-    { href: GITHUB_CSV_URL,    icon: "📄", label: "View CSV on GitHub" },
-    { href: GITHUB_PRS_URL,    icon: "🔀", label: "Open Pull Requests" },
-    { href: GITHUB_ACTIONS_URL,icon: "⚙", label: "Open GitHub Actions" },
+    { href: GEO_DOWNLOAD_URL,                             icon: "⬇", label: "Download Map GeoJSON",       dl: "ImpactMap_Dataset.geojson" },
+    { href: `${DATA_BASE}/output/geocode_review.csv`,     icon: "⬇", label: "Download Geocode Review CSV", dl: "geocode_review.csv" },
+    { href: `${DATA_BASE}/output/build_stats.json`,       icon: "⬇", label: "Download Build Stats JSON",   dl: "build_stats.json" },
+    { href: GITHUB_CSV_URL,    icon: "📄", label: "View CSV on GitHub",     target: true },
+    { href: GITHUB_PRS_URL,    icon: "🔀", label: "All Pull Requests",      target: true },
+    { href: GITHUB_ACTIONS_URL,icon: "⚙", label: "GitHub Actions (builds)", target: true },
   ];
-  return items.map(a => `
-    <a href="${esc(a.href)}" class="action-link${a.primary ? " primary" : ""}"
-       target="_blank" rel="noopener noreferrer">
-      <span class="action-icon">${a.icon}</span>
-      <span>${esc(a.label)}</span>
-    </a>`).join("");
+  return items.map(a => {
+    const dl     = a.dl     ? `download="${esc(a.dl)}"` : "";
+    const target = a.target ? `target="_blank" rel="noopener noreferrer"` : "";
+    return `
+      <a href="${esc(a.href)}" class="action-link" ${dl} ${target}>
+        <span class="action-icon">${a.icon}</span>
+        <span>${esc(a.label)}</span>
+      </a>`;
+  }).join("");
 }
 
 // ── CONFIDENCE BADGE ──────────────────────────────────────────────────────
@@ -206,6 +274,12 @@ function confidenceBadge(conf) {
   if (!conf) return "";
   const cls = ["low", "medium", "high", "exact"].includes(conf) ? conf : "unknown";
   return `<span class="badge ${cls}">${esc(conf)}</span>`;
+}
+
+// ── PR SEARCH URL for a specific row ──────────────────────────────────────
+function rowPrSearchUrl(rowNum) {
+  const q = encodeURIComponent(`Approve geocode suggestion Row ${rowNum}`);
+  return `${GITHUB_BASE}/pulls?q=is%3Aopen+is%3Apr+${q}`;
 }
 
 // ── REVIEW CARD ───────────────────────────────────────────────────────────
@@ -216,6 +290,8 @@ function renderCard(r) {
   const mapsUrl  = sug
     ? `https://www.google.com/maps?q=${encodeURIComponent(r.suggested_latitude)},${encodeURIComponent(r.suggested_longitude)}`
     : "";
+
+  const csvRowUrl = `${GITHUB_CSV_URL}#L${r.row ? Number(r.row) + 1 : ""}`;
 
   const sugBlock = sug ? `
     <div class="sug-block">
@@ -229,14 +305,22 @@ function renderCard(r) {
       <div class="sug-actions">
         <a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
            class="btn btn-maps">📍 Open in Google Maps</a>
-        <button class="btn btn-sm-copy"
-                onclick="copyText(${JSON.stringify(r.row)}, this)"
-                title="Copy CSV row number">📋 Copy row #${esc(r.row)}</button>
+        <a href="${esc(rowPrSearchUrl(r.row))}" target="_blank" rel="noopener noreferrer"
+           class="btn btn-pr-link">🔀 Open Approval PR</a>
         <button class="btn btn-sm-copy"
                 onclick="copyText(${JSON.stringify(coords)}, this)"
                 title="Copy suggested coordinates">📋 Copy coords</button>
       </div>
-    </div>` : "";
+      <div class="sug-approve-note">
+        To <strong>approve</strong> this location: merge the PR above.
+        To <strong>reject</strong>: close the PR and fix the CSV manually.
+      </div>
+    </div>` : `
+    <div class="sug-block no-sug-block">
+      <div class="sug-hdr">❓ No Suggestion Available</div>
+      <p class="no-sug-text">The system could not find a confident location for this row.
+        Fix the CSV by adding a better street address or by entering Latitude and Longitude directly.</p>
+    </div>`;
 
   return `
     <div class="review-card ${sug ? "has-sug" : "no-sug"}">
@@ -245,6 +329,8 @@ function renderCard(r) {
         <span class="card-event">Event&nbsp;${esc(r.event)} · Exp.&nbsp;${esc(r.expedition)}</span>
         <span class="card-location">${esc(location) || "<em>No location</em>"}</span>
         <span class="card-year">${esc(r.year)}</span>
+        <a href="${esc(csvRowUrl)}" target="_blank" rel="noopener noreferrer"
+           class="card-csv-link" title="View source CSV row on GitHub">CSV row ↗</a>
       </div>
       <div class="card-body">
         <div>
@@ -269,6 +355,7 @@ function applyFiltersAndSearch() {
   const listEl    = document.getElementById("review-list");
   const countEl   = document.getElementById("filter-count");
   const copyAllEl = document.getElementById("copy-all-btn");
+  const prsBtnEl  = document.getElementById("review-prs-btn");
 
   let visible = ALL_ROWS;
 
@@ -287,7 +374,6 @@ function applyFiltersAndSearch() {
     );
   }
 
-  // ── Empty: no rows at all ──
   if (ALL_ROWS.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state">
@@ -297,36 +383,33 @@ function applyFiltersAndSearch() {
           The build workflow updates this page automatically after each
           upload — check back after the next CSV update.</p>
       </div>`;
-    countEl.style.display = "none";
+    countEl.style.display   = "none";
     copyAllEl.style.display = "none";
+    if (prsBtnEl) prsBtnEl.style.display = "none";
     return;
   }
 
-  // ── Empty: filter returned nothing ──
   if (visible.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state neutral">
         <div class="empty-icon">🔍</div>
         <div class="empty-title" style="color:var(--text-muted)">No rows match your filter</div>
-        <p class="empty-sub">Try a different filter option or clear the search box.</p>
+        <p class="empty-sub">Try a different filter or clear the search box.</p>
       </div>`;
-    countEl.style.display = "none";
+    countEl.style.display   = "none";
     copyAllEl.style.display = "none";
     return;
   }
 
-  // ── Render cards ──
   listEl.innerHTML = `<div class="review-list">${visible.map(renderCard).join("")}</div>`;
 
-  // Filter count line
   if (visible.length !== ALL_ROWS.length) {
-    countEl.textContent = `Showing ${visible.length} of ${ALL_ROWS.length} row${ALL_ROWS.length !== 1 ? "s" : ""}`;
+    countEl.textContent  = `Showing ${visible.length} of ${ALL_ROWS.length} row${ALL_ROWS.length !== 1 ? "s" : ""}`;
     countEl.style.display = "block";
   } else {
     countEl.style.display = "none";
   }
 
-  // Copy-all button (only when suggestion rows are visible)
   const sugVisible = visible.filter(hasSuggestion);
   if (sugVisible.length > 0) {
     const nums = sugVisible.map(r => r.row).filter(Boolean).join(", ");
@@ -348,7 +431,6 @@ function initFilters() {
       applyFiltersAndSearch();
     });
   });
-
   const searchEl = document.getElementById("search-input");
   if (searchEl) {
     searchEl.addEventListener("input", () => {
@@ -372,7 +454,7 @@ function renderFooter(stats, lastModified) {
   if (!el) return;
   const parts = [];
   if (stats?.features != null) parts.push(`${fmtNum(stats.features)} features`);
-  if (lastModified)            parts.push(`Built ${fmtDate(lastModified)}`);
+  if (lastModified)             parts.push(`Built ${fmtDate(lastModified)}`);
   el.textContent = parts.join(" · ");
 }
 
@@ -400,10 +482,21 @@ async function init() {
     const stats        = statsResult.status === "fulfilled" ? statsResult.value.data         : null;
     const lastModified = statsResult.status === "fulfilled" ? statsResult.value.lastModified : "";
 
-    // ── Populate sections ──
-    document.getElementById("stats-grid").innerHTML   = renderStats(ALL_ROWS, stats);
-    document.getElementById("file-actions").innerHTML = renderFileActions();
-    document.getElementById("github-links").innerHTML = renderGithubLinks();
+    // Main stats
+    document.getElementById("main-stats-grid").innerHTML =
+      renderMainStats(ALL_ROWS, stats, lastModified);
+
+    // Advanced stats
+    document.getElementById("advanced-stats-grid").innerHTML =
+      renderAdvancedStats(ALL_ROWS, stats);
+
+    // Primary actions
+    document.getElementById("primary-actions").innerHTML =
+      renderPrimaryActions(ALL_ROWS);
+
+    // Advanced actions
+    document.getElementById("advanced-actions").innerHTML =
+      renderAdvancedActions();
 
     // Build meta line
     const metaEl = document.getElementById("build-meta");
@@ -411,17 +504,23 @@ async function init() {
       metaEl.textContent = `Last build: ${fmtDate(lastModified)}`;
     }
 
-    // Status + badge + footer
+    // Status + badge
     const n = ALL_ROWS.length;
     setStatus(n === 0 ? "ok" : "warn", n === 0 ? "All clear" : `${n} row${n !== 1 ? "s" : ""} pending`);
     setQueueBadge(n);
+
+    // "Open Review PRs" button in queue header
+    const prsBtnEl = document.getElementById("review-prs-btn");
+    if (prsBtnEl && n > 0) {
+      prsBtnEl.href = REVIEW_PRS_SEARCH_URL;
+      prsBtnEl.style.display = "inline-flex";
+    }
+
     renderFooter(stats, lastModified);
 
-    // Show dashboard
-    loadingEl.style.display  = "none";
+    loadingEl.style.display   = "none";
     dashboardEl.style.display = "block";
 
-    // Filters and initial render
     initFilters();
     applyFiltersAndSearch();
 

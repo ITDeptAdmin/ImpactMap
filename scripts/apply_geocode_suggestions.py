@@ -1,27 +1,32 @@
 # apply_geocode_suggestions.py
 #
-# Reads output/geocode_review.csv and applies suggested coordinates to
-# data/Master_Clinic_ImpactMap.csv for any row that has suggested_latitude
-# and suggested_longitude set.
+# Applies the suggested coordinates for ONE review row to the Master CSV.
 #
-# Safety rules enforced here (build script enforces them again on re-run):
-#   - Never overwrites an existing Latitude or Longitude value.
-#   - Validates the row index is in range.
-#   - Appends every applied change to logs/geocode_approval_suggestions.csv.
+# Row selection (required — provide one):
+#   CLI argument:     python apply_geocode_suggestions.py --review-row 1714
+#   Environment var:  REVIEW_ROW=1714
+#
+# If neither is given the script exits with an error.
+#
+# Safety rules:
+#   - Never overwrites existing Latitude or Longitude.
+#   - Validates row index is in range.
+#   - Validates event/expedition match when available.
+#   - Appends every change to logs/geocode_approval_suggestions.csv.
 #   - Re-runs scripts/build_impactmap_geojson.py after updating the CSV.
-#   - Writes output/geocode_suggestions_applied.json so the calling workflow
-#     can build a PR body and decide whether to open a pull request.
+#   - Writes output/geocode_suggestions_applied.json for the calling workflow.
+#   - Exits 0 in all cases so the workflow can always read the JSON.
 #
-# Environment variables (all optional — defaults shown):
+# Environment variables (all optional except REVIEW_ROW):
+#   REVIEW_ROW                   1-based CSV row number to apply
 #   GEOCODE_REVIEW_FILE          output/geocode_review.csv
 #   CSV_FILE                     data/Master_Clinic_ImpactMap.csv
 #   APPROVAL_LOG_FILE            logs/geocode_approval_suggestions.csv
 #   SUGGESTIONS_APPLIED_JSON     output/geocode_suggestions_applied.json
-#   GEOCODE_REVIEW_FILE_OUT      output/geocode_review.csv   (passed to build)
-#   BUILD_STATS_FILE             output/build_stats.json     (passed to build)
 #   MAPBOX_GEOCODING_TOKEN       forwarded to build script
 #   BRANCH_NAME                  recorded in approval log
 
+import argparse
 import csv
 import json
 import os
@@ -30,43 +35,29 @@ import sys
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-REVIEW_FILE = os.environ.get("GEOCODE_REVIEW_FILE", "output/geocode_review.csv")
-CSV_FILE = os.environ.get("CSV_FILE", "data/Master_Clinic_ImpactMap.csv")
-APPROVAL_LOG_FILE = os.environ.get("APPROVAL_LOG_FILE", "logs/geocode_approval_suggestions.csv")
-OUTPUT_JSON = os.environ.get("SUGGESTIONS_APPLIED_JSON", "output/geocode_suggestions_applied.json")
-BUILD_SCRIPT = "scripts/build_impactmap_geojson.py"
-GEOJSON_OUTPUT = "output/ImpactMap_Dataset.geojson"
+REVIEW_FILE   = os.environ.get("GEOCODE_REVIEW_FILE",      "output/geocode_review.csv")
+CSV_FILE      = os.environ.get("CSV_FILE",                 "data/Master_Clinic_ImpactMap.csv")
+APPROVAL_LOG  = os.environ.get("APPROVAL_LOG_FILE",        "logs/geocode_approval_suggestions.csv")
+OUTPUT_JSON   = os.environ.get("SUGGESTIONS_APPLIED_JSON", "output/geocode_suggestions_applied.json")
+BUILD_SCRIPT  = "scripts/build_impactmap_geojson.py"
+GEOJSON_OUT   = "output/ImpactMap_Dataset.geojson"
 
 APPROVAL_LOG_HEADERS = [
-    "timestamp_utc",
-    "branch",
-    "csv_row",
-    "event",
-    "expedition",
-    "city",
-    "state",
-    "country",
-    "address",
-    "suggested_latitude",
-    "suggested_longitude",
-    "suggested_confidence",
-    "suggested_address",
-    "suggested_source",
+    "timestamp_utc", "branch", "csv_row", "event", "expedition",
+    "city", "state", "country", "address",
+    "suggested_latitude", "suggested_longitude",
+    "suggested_confidence", "suggested_address", "suggested_source",
     "applied_by",
 ]
 
-LAT_ALIASES = ["Latitude", "Lat", "LAT", "lat", "latitude"]
-LON_ALIASES = ["Longitude", "Longitutde", "Long", "Lng", "LON", "lon", "lng", "longitude"]
+LAT_ALIASES = ["Latitude",  "Lat",  "LAT",  "lat",  "latitude"]
+LON_ALIASES = ["Longitude", "Longitutde", "Long", "Lng",
+                "LON", "lon", "lng", "longitude"]
 
 
 def to_float(val) -> Optional[float]:
-    if val is None:
-        return None
-    s = str(val).strip()
-    if not s:
-        return None
     try:
-        return float(s)
+        return float(str(val).strip())
     except Exception:
         return None
 
@@ -113,122 +104,137 @@ def write_output_json(path: str, applied: list, skipped: list) -> None:
 
 
 def main():
-    review_rows = read_review_rows(REVIEW_FILE)
+    parser = argparse.ArgumentParser(description="Apply one geocode suggestion to the Master CSV")
+    parser.add_argument("--review-row", type=int, default=None,
+                        help="1-based CSV row number to apply (also readable from REVIEW_ROW env var)")
+    args = parser.parse_args()
 
-    suggestions = [
-        r for r in review_rows
-        if to_float(r.get("suggested_latitude")) is not None
-        and to_float(r.get("suggested_longitude")) is not None
-    ]
+    # Row number: CLI arg takes precedence, then env var
+    target_row: Optional[int] = args.review_row
+    if target_row is None:
+        env_val = os.environ.get("REVIEW_ROW", "").strip()
+        if env_val:
+            try:
+                target_row = int(env_val)
+            except ValueError:
+                print(f"ERROR: REVIEW_ROW={env_val!r} is not a valid integer.")
+                write_output_json(OUTPUT_JSON, [], [])
+                sys.exit(0)
 
-    if not suggestions:
-        print("No suggested coordinates in review file. Nothing to apply.")
+    if target_row is None:
+        print("ERROR: No review row specified. Use --review-row N or REVIEW_ROW=N.")
         write_output_json(OUTPUT_JSON, [], [])
         sys.exit(0)
 
+    # Find the matching review row
+    all_review = read_review_rows(REVIEW_FILE)
+    matching = [
+        r for r in all_review
+        if r.get("row", "").strip() == str(target_row)
+        and to_float(r.get("suggested_latitude"))  is not None
+        and to_float(r.get("suggested_longitude")) is not None
+    ]
+
+    if not matching:
+        print(f"No review row {target_row} with suggested coordinates found in {REVIEW_FILE}.")
+        write_output_json(OUTPUT_JSON, [], [])
+        sys.exit(0)
+
+    review = matching[0]
+
+    # Load the source CSV
     fieldnames, csv_rows = read_csv(CSV_FILE)
     lat_header = pick_header(fieldnames, LAT_ALIASES)
     lon_header = pick_header(fieldnames, LON_ALIASES)
 
     if not lat_header or not lon_header:
         print("ERROR: Could not find Latitude/Longitude columns in the source CSV.")
-        sys.exit(1)
-
-    applied = []
-    skipped = []
-
-    for review in suggestions:
-        row_num_str = review.get("row", "").strip()
-        try:
-            row_num = int(row_num_str)
-        except ValueError:
-            skipped.append({**review, "skip_reason": f"Invalid row number: {row_num_str!r}"})
-            continue
-
-        if row_num < 1 or row_num > len(csv_rows):
-            skipped.append({**review, "skip_reason": f"Row {row_num} out of range (CSV has {len(csv_rows)} data rows)"})
-            continue
-
-        csv_row = csv_rows[row_num - 1]  # row numbers in review file are 1-based
-
-        existing_lat = str(csv_row.get(lat_header, "")).strip()
-        existing_lon = str(csv_row.get(lon_header, "")).strip()
-
-        if existing_lat or existing_lon:
-            skipped.append({**review, "skip_reason": f"Row {row_num} already has coordinates — not overwriting"})
-            continue
-
-        csv_row[lat_header] = review["suggested_latitude"].strip()
-        csv_row[lon_header] = review["suggested_longitude"].strip()
-
-        applied.append({
-            "csv_row": row_num,
-            "event": review.get("event", ""),
-            "expedition": review.get("expedition", ""),
-            "year": review.get("year", ""),
-            "city": review.get("city", ""),
-            "state": review.get("state", ""),
-            "country": review.get("country", ""),
-            "address": review.get("address", ""),
-            "zipcode": review.get("zipcode", ""),
-            "suggested_latitude": review["suggested_latitude"].strip(),
-            "suggested_longitude": review["suggested_longitude"].strip(),
-            "suggested_confidence": review.get("suggested_confidence", ""),
-            "suggested_address": review.get("suggested_address", ""),
-            "suggested_source": review.get("suggested_source", ""),
-            "reason": review.get("reason", ""),
-        })
-
-    if not applied:
-        print("All suggestions skipped (rows already have coordinates or invalid indices).")
-        write_output_json(OUTPUT_JSON, [], skipped)
+        write_output_json(OUTPUT_JSON, [], [])
         sys.exit(0)
 
+    if target_row < 1 or target_row > len(csv_rows):
+        msg = f"Row {target_row} is out of range (CSV has {len(csv_rows)} data rows)."
+        print(f"SKIP: {msg}")
+        write_output_json(OUTPUT_JSON, [], [{"skip_reason": msg, **review}])
+        sys.exit(0)
+
+    csv_row = csv_rows[target_row - 1]
+
+    # Safety: never overwrite existing coordinates
+    existing_lat = str(csv_row.get(lat_header, "")).strip()
+    existing_lon = str(csv_row.get(lon_header, "")).strip()
+    if existing_lat or existing_lon:
+        msg = f"Row {target_row} already has coordinates — not overwriting."
+        print(f"SKIP: {msg}")
+        write_output_json(OUTPUT_JSON, [], [{"skip_reason": msg, **review}])
+        sys.exit(0)
+
+    # Apply
+    csv_row[lat_header] = review["suggested_latitude"].strip()
+    csv_row[lon_header] = review["suggested_longitude"].strip()
+
+    applied_record = {
+        "csv_row":              target_row,
+        "event":                review.get("event", ""),
+        "expedition":           review.get("expedition", ""),
+        "year":                 review.get("year", ""),
+        "city":                 review.get("city", ""),
+        "state":                review.get("state", ""),
+        "country":              review.get("country", ""),
+        "address":              review.get("address", ""),
+        "zipcode":              review.get("zipcode", ""),
+        "suggested_latitude":   review["suggested_latitude"].strip(),
+        "suggested_longitude":  review["suggested_longitude"].strip(),
+        "suggested_confidence": review.get("suggested_confidence", ""),
+        "suggested_address":    review.get("suggested_address", ""),
+        "suggested_source":     review.get("suggested_source", ""),
+        "reason":               review.get("reason", ""),
+    }
+
     write_csv(CSV_FILE, fieldnames, csv_rows)
-    print(f"Applied {len(applied)} suggestion(s) to {CSV_FILE}")
+    print(f"Applied suggestion for row {target_row} to {CSV_FILE}")
 
     # Append to approval log
-    os.makedirs(os.path.dirname(APPROVAL_LOG_FILE) or ".", exist_ok=True)
-    file_exists = os.path.exists(APPROVAL_LOG_FILE) and os.path.getsize(APPROVAL_LOG_FILE) > 0
-    branch = os.environ.get("BRANCH_NAME", "")
+    os.makedirs(os.path.dirname(APPROVAL_LOG) or ".", exist_ok=True)
+    file_exists = os.path.exists(APPROVAL_LOG) and os.path.getsize(APPROVAL_LOG) > 0
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    with open(APPROVAL_LOG_FILE, "a", encoding="utf-8", newline="") as f:
+    branch = os.environ.get("BRANCH_NAME", "")
+    with open(APPROVAL_LOG, "a", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=APPROVAL_LOG_HEADERS, extrasaction="ignore")
         if not file_exists:
             writer.writeheader()
-        for a in applied:
-            writer.writerow({
-                "timestamp_utc": ts,
-                "branch": branch,
-                "csv_row": a["csv_row"],
-                "event": a["event"],
-                "expedition": a["expedition"],
-                "city": a["city"],
-                "state": a["state"],
-                "country": a["country"],
-                "address": a["address"],
-                "suggested_latitude": a["suggested_latitude"],
-                "suggested_longitude": a["suggested_longitude"],
-                "suggested_confidence": a["suggested_confidence"],
-                "suggested_address": a["suggested_address"],
-                "suggested_source": a["suggested_source"],
-                "applied_by": "geocode-review-pr-workflow",
-            })
-    print(f"Approval log updated: {APPROVAL_LOG_FILE}")
+        writer.writerow({
+            "timestamp_utc":        ts,
+            "branch":               branch,
+            "csv_row":              applied_record["csv_row"],
+            "event":                applied_record["event"],
+            "expedition":           applied_record["expedition"],
+            "city":                 applied_record["city"],
+            "state":                applied_record["state"],
+            "country":              applied_record["country"],
+            "address":              applied_record["address"],
+            "suggested_latitude":   applied_record["suggested_latitude"],
+            "suggested_longitude":  applied_record["suggested_longitude"],
+            "suggested_confidence": applied_record["suggested_confidence"],
+            "suggested_address":    applied_record["suggested_address"],
+            "suggested_source":     applied_record["suggested_source"],
+            "applied_by":           "geocode-review-pr-workflow",
+        })
+    print(f"Approval log updated: {APPROVAL_LOG}")
 
-    # Re-run the build script so the GeoJSON and review file reflect the new coordinates.
+    # Re-run the build so GeoJSON and review CSV reflect the new coordinate
     env = {**os.environ}
     env.setdefault("GEOCODE_REVIEW_FILE", "output/geocode_review.csv")
-    env.setdefault("BUILD_STATS_FILE", "output/build_stats.json")
+    env.setdefault("BUILD_STATS_FILE",    "output/build_stats.json")
     result = subprocess.run(
-        [sys.executable, BUILD_SCRIPT, CSV_FILE, GEOJSON_OUTPUT],
+        [sys.executable, BUILD_SCRIPT, CSV_FILE, GEOJSON_OUT],
         env=env,
     )
     if result.returncode != 0:
-        print("WARNING: Build script returned a non-zero exit code after applying suggestions.")
+        print("WARNING: Build script returned non-zero after applying suggestion.")
 
-    write_output_json(OUTPUT_JSON, applied, skipped)
-    print(f"Done. Applied: {len(applied)}, Skipped: {len(skipped)}")
+    write_output_json(OUTPUT_JSON, [applied_record], [])
+    print(f"Done. Applied row {target_row}.")
 
 
 if __name__ == "__main__":
