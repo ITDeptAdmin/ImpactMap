@@ -229,17 +229,17 @@ function renderPrimaryActions(rows) {
       </a>`;
 
   if (pending > 0) {
-    const label = withSug > 0
-      ? `Open Review Pull Requests (${withSug} suggestion${withSug !== 1 ? "s" : ""})`
-      : `Open Review Pull Requests (${pending} pending)`;
+    const count = withSug > 0
+      ? `${withSug} suggestion${withSug !== 1 ? "s" : ""}`
+      : `${pending} pending`;
     html += `
       <a href="${esc(REVIEW_PRS_SEARCH_URL)}"
          class="primary-btn primary-btn-prs"
          target="_blank" rel="noopener noreferrer">
         <span class="primary-btn-icon">🔀</span>
         <div>
-          <div class="primary-btn-label">${esc(label)}</div>
-          <div class="primary-btn-sub">Review and merge or close PRs on GitHub</div>
+          <div class="primary-btn-label">Review Pending Suggestions (${esc(count)})</div>
+          <div class="primary-btn-sub">Search open approval PRs on GitHub</div>
         </div>
       </a>`;
   }
@@ -277,9 +277,17 @@ function confidenceBadge(conf) {
 }
 
 // ── PR SEARCH URL for a specific row ──────────────────────────────────────
+// Quoted phrases match the exact PR title format:
+//   "Approve geocode suggestion — Row 1821 — Event 1820"
+// Using two quoted fragments is more reliable than encoding the em dash.
 function rowPrSearchUrl(rowNum) {
-  const q = encodeURIComponent(`Approve geocode suggestion Row ${rowNum}`);
+  const q = encodeURIComponent(`"Approve geocode suggestion" "Row ${rowNum}"`);
   return `${GITHUB_BASE}/pulls?q=is%3Aopen+is%3Apr+${q}`;
+}
+
+// ── CSV EDIT URL ───────────────────────────────────────────────────────────
+function csvEditUrl() {
+  return `${GITHUB_BASE}/edit/${GITHUB_BRANCH}/data/Master_Clinic_ImpactMap.csv`;
 }
 
 // ── REVIEW CARD ───────────────────────────────────────────────────────────
@@ -291,7 +299,9 @@ function renderCard(r) {
     ? `https://www.google.com/maps?q=${encodeURIComponent(r.suggested_latitude)},${encodeURIComponent(r.suggested_longitude)}`
     : "";
 
-  const csvRowUrl = `${GITHUB_CSV_URL}#L${r.row ? Number(r.row) + 1 : ""}`;
+  // CSV line = row number + 1 (header row offset)
+  const csvLineNum = r.row ? Number(r.row) + 1 : "";
+  const csvRowUrl  = `${GITHUB_CSV_URL}#L${csvLineNum}`;
 
   const sugBlock = sug ? `
     <div class="sug-block">
@@ -306,20 +316,45 @@ function renderCard(r) {
         <a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
            class="btn btn-maps">📍 Open in Google Maps</a>
         <a href="${esc(rowPrSearchUrl(r.row))}" target="_blank" rel="noopener noreferrer"
-           class="btn btn-pr-link">🔀 Open Approval PR</a>
+           class="btn btn-pr-link" title="Searches GitHub for the approval PR for this row">
+          🔍 Search for Approval PR
+        </a>
         <button class="btn btn-sm-copy"
                 onclick="copyText(${JSON.stringify(coords)}, this)"
                 title="Copy suggested coordinates">📋 Copy coords</button>
       </div>
       <div class="sug-approve-note">
-        To <strong>approve</strong> this location: merge the PR above.
-        To <strong>reject</strong>: close the PR and fix the CSV manually.
+        <strong>To approve:</strong> find and merge the approval PR on GitHub.
+        <strong>To reject:</strong> close the PR without merging, then fix the CSV.<br>
+        <span class="pr-not-ready-note">
+          If no PR appears, run <strong>Create Geocode Review PRs</strong> from
+          <a href="${esc(GITHUB_ACTIONS_URL)}" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
+          or wait for it to finish automatically.
+        </span>
       </div>
     </div>` : `
     <div class="sug-block no-sug-block">
       <div class="sug-hdr">❓ No Suggestion Available</div>
       <p class="no-sug-text">The system could not find a confident location for this row.
-        Fix the CSV by adding a better street address or by entering Latitude and Longitude directly.</p>
+        Fix the CSV by adding a better street address or by entering the Latitude and Longitude directly.</p>
+    </div>`;
+
+  // CSV action buttons — always shown on every card
+  const csvActions = `
+    <div class="csv-actions-block">
+      <div class="field-label">CSV Actions</div>
+      <div class="csv-btns">
+        <a href="${esc(csvRowUrl)}" target="_blank" rel="noopener noreferrer"
+           class="btn btn-csv" title="View CSV file on GitHub near line ${csvLineNum}">
+          📄 View CSV Row
+        </a>
+        <a href="${esc(csvEditUrl())}" target="_blank" rel="noopener noreferrer"
+           class="btn btn-csv" title="Open the CSV file in the GitHub editor">
+          ✏️ Edit CSV File
+        </a>
+      </div>
+      <p class="csv-help-note">Use <strong>View CSV Row</strong> to find the row in the file.
+        Use <strong>Edit CSV File</strong> to manually fix the address or Latitude/Longitude.</p>
     </div>`;
 
   return `
@@ -329,8 +364,6 @@ function renderCard(r) {
         <span class="card-event">Event&nbsp;${esc(r.event)} · Exp.&nbsp;${esc(r.expedition)}</span>
         <span class="card-location">${esc(location) || "<em>No location</em>"}</span>
         <span class="card-year">${esc(r.year)}</span>
-        <a href="${esc(csvRowUrl)}" target="_blank" rel="noopener noreferrer"
-           class="card-csv-link" title="View source CSV row on GitHub">CSV row ↗</a>
       </div>
       <div class="card-body">
         <div>
@@ -346,16 +379,18 @@ function renderCard(r) {
           <div class="field-reason">${esc(r.reason)}</div>
         </div>
         ${sugBlock}
+        ${csvActions}
       </div>
     </div>`;
 }
 
 // ── FILTER + SEARCH ───────────────────────────────────────────────────────
 function applyFiltersAndSearch() {
-  const listEl    = document.getElementById("review-list");
-  const countEl   = document.getElementById("filter-count");
-  const copyAllEl = document.getElementById("copy-all-btn");
-  const prsBtnEl  = document.getElementById("review-prs-btn");
+  const listEl      = document.getElementById("review-list");
+  const countEl     = document.getElementById("filter-count");
+  const copyAllEl   = document.getElementById("copy-all-btn");
+  const prsBtnEl    = document.getElementById("review-prs-btn");
+  const queueNoteEl = document.getElementById("queue-pr-note");
 
   let visible = ALL_ROWS;
 
@@ -385,9 +420,13 @@ function applyFiltersAndSearch() {
       </div>`;
     countEl.style.display   = "none";
     copyAllEl.style.display = "none";
-    if (prsBtnEl) prsBtnEl.style.display = "none";
+    if (prsBtnEl)    prsBtnEl.style.display    = "none";
+    if (queueNoteEl) queueNoteEl.style.display = "none";
     return;
   }
+
+  // Show workflow hint whenever there are review rows
+  if (queueNoteEl) queueNoteEl.style.display = "block";
 
   if (visible.length === 0) {
     listEl.innerHTML = `
@@ -509,12 +548,16 @@ async function init() {
     setStatus(n === 0 ? "ok" : "warn", n === 0 ? "All clear" : `${n} row${n !== 1 ? "s" : ""} pending`);
     setQueueBadge(n);
 
-    // "Open Review PRs" button in queue header
+    // "Review Pending Suggestions" button in queue header
     const prsBtnEl = document.getElementById("review-prs-btn");
     if (prsBtnEl && n > 0) {
       prsBtnEl.href = REVIEW_PRS_SEARCH_URL;
       prsBtnEl.style.display = "inline-flex";
     }
+
+    // Wire Actions link inside the queue note
+    const actionsLinkEl = document.getElementById("actions-link-inline");
+    if (actionsLinkEl) actionsLinkEl.href = GITHUB_ACTIONS_URL;
 
     renderFooter(stats, lastModified);
 

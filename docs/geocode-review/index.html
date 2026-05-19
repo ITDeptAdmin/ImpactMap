@@ -71,7 +71,7 @@
           </div>
           <div class="step">
             <span class="step-num">5</span>
-            <span><strong>Open the row's Pull Request</strong> and merge it if the suggested location is correct, or close it and fix the CSV manually if it's wrong.</span>
+            <span>Use <strong>Search for Approval PR</strong> on the review card to find the row's Pull Request. Merge it if the location is correct, or close it if it's wrong. If no PR appears yet, run <strong>Create Geocode Review PRs</strong> from GitHub Actions.</span>
           </div>
         </div>
 
@@ -109,11 +109,16 @@
             <div class="help-block">
               <h3 class="help-heading">Approving a suggestion (merging a PR)</h3>
               <ol class="help-list">
-                <li>Open the PR link from the Review Queue card or from the <strong>Open Review Pull Requests</strong> button.</li>
+                <li>Click <strong>Search for Approval PR</strong> on the review card. This searches GitHub for the open PR for that row.</li>
                 <li>Check the Google Maps link in the PR to confirm the location looks correct.</li>
                 <li>If it looks right, click <strong>Merge pull request</strong> on GitHub.</li>
                 <li>The map rebuilds automatically after the merge.</li>
               </ol>
+              <p style="margin-top:8px;font-size:0.81rem;color:var(--text-muted)">
+                If no PR appears in the search results, go to
+                <strong>GitHub Actions → Create Geocode Review PRs → Run workflow</strong>
+                to create it manually. PRs are normally created automatically after each build.
+              </p>
             </div>
 
             <div class="help-block">
@@ -196,8 +201,8 @@
         <div class="queue-hdr-right">
           <a id="review-prs-btn" class="btn btn-review-prs" style="display:none"
              target="_blank" rel="noopener noreferrer"
-             aria-label="Open review pull requests on GitHub">
-            🔀 Open Review Pull Requests
+             aria-label="Search for review pull requests on GitHub">
+            🔍 Review Pending Suggestions
           </a>
           <button id="copy-all-btn" class="btn btn-copy" style="display:none"
                   aria-label="Copy all row numbers with suggested coordinates">
@@ -217,6 +222,13 @@
                aria-label="Search review rows"
                autocomplete="off">
       </div>
+
+      <p id="queue-pr-note" class="queue-pr-note" style="display:none">
+        Each row with a suggestion gets its own Pull Request. Use <strong>Search for Approval PR</strong>
+        on each card to find it. If no PR appears yet, go to
+        <a href="#" id="actions-link-inline" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
+        → <strong>Create Geocode Review PRs</strong> → <strong>Run workflow</strong>.
+      </p>
 
       <p id="filter-count" class="filter-count" style="display:none" aria-live="polite"></p>
       <div id="review-list" aria-live="polite"></div>
