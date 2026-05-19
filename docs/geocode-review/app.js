@@ -16,7 +16,7 @@
 // ── CONFIG ────────────────────────────────────────────────────────────────
 const DATA_BASE    = "../..";
 const GITHUB_REPO   = "ITDeptAdmin/ImpactMap";   // !! update this !!
-const GITHUB_BRANCH = "main";                     // !! update if needed !!
+const GITHUB_BRANCH = "staging";                  // !! update if needed !!
 
 const REVIEW_CSV_URL    = `${DATA_BASE}/output/geocode_review.csv`;
 const BUILD_STATS_URL   = `${DATA_BASE}/output/build_stats.json`;
