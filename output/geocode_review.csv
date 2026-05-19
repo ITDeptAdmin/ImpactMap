@@ -1,1 +1,1 @@
-row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason
+row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason,suggested_latitude,suggested_longitude,suggested_confidence,suggested_address,suggested_source
