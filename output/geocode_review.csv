@@ -1,1 +1,5 @@
 row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason,suggested_latitude,suggested_longitude,suggested_confidence,suggested_address,suggested_source
+1821,1820,1820,2026,"51122222 Municipal Drive 
+Jefferson City TN, 37760",test,Tennessee,,Jefferson,United States,37760,Existing CSV match was ambiguous; Mapbox returned unknown confidence — verify before accepting,36.132937,-83.486175,unknown,"Municipal Drive, Jefferson City, Tennessee 37760, United States",Mapbox (not auto-approved — CSV match was ambiguous)
+1822,1820,1820,2026,"51134454321 Municipal Drive 
+Jefferson City TN, 37760",test 2,Tennessee,,Jefferson,United States,37760,Existing CSV match was ambiguous; Mapbox returned unknown confidence — verify before accepting,36.132937,-83.486175,unknown,"Municipal Drive, Jefferson City, Tennessee 37760, United States",Mapbox (not auto-approved — CSV match was ambiguous)
