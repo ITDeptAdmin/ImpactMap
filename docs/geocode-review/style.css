@@ -826,6 +826,82 @@ code, .mono { font-family: var(--mono); font-size: 0.88em; }
 .footer-inner a { color: rgba(255,255,255,.45); text-decoration: none; }
 .footer-inner a:hover { color: rgba(255,255,255,.7); }
 
+/* ── ROW STATUS BADGES ───────────────────────────────────────────────────── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 11px;
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.status-badge.ready    { background: #eff6ff;          color: var(--accent); border: 1px solid #bfdbfe; }
+.status-badge.approved { background: var(--ok-bg);     color: var(--ok);     border: 1px solid var(--ok-border); }
+.status-badge.rejected { background: var(--warn-bg);   color: var(--warn);   border: 1px solid var(--warn-border); }
+.status-badge.pending  { background: var(--surface-3); color: var(--text-muted); border: 1px solid var(--border); }
+.status-badge.loading  { background: var(--surface-3); color: var(--text-muted); border: 1px solid var(--border); }
+.status-badge.unknown  { background: var(--surface-3); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* ── CARD STATUS VARIANTS ────────────────────────────────────────────────── */
+.review-card.status-ready         { border-left-color: var(--accent); }
+.review-card.status-approved      { border-left-color: var(--ok); }
+.review-card.status-rejected      { border-left-color: var(--warn); }
+.review-card.status-pending       { border-left-color: var(--text-muted); }
+.review-card.status-loading       { border-left-color: var(--border-2); }
+.review-card.status-unknown       { border-left-color: var(--border-2); }
+.review-card.status-no-suggestion { border-left-color: var(--surface-3); }
+
+/* ── SUGGESTION BLOCK STATUS VARIANTS ───────────────────────────────────── */
+.sug-block.sug-status-ready    { background: #eff6ff;          border-color: #bfdbfe; }
+.sug-block.sug-status-approved { background: var(--ok-bg);     border-color: var(--ok-border); }
+.sug-block.sug-status-rejected { background: var(--warn-bg);   border-color: var(--warn-border); }
+.sug-block.sug-status-pending  { background: var(--surface-2); border-color: var(--border); }
+.sug-block.sug-status-loading  { background: var(--surface-2); border-color: var(--border); }
+.sug-block.sug-status-unknown  { background: var(--surface-2); border-color: var(--border); }
+
+.sug-block.sug-status-approved .sug-hdr { color: var(--ok); }
+.sug-block.sug-status-rejected .sug-hdr { color: var(--warn); }
+.sug-block.sug-status-pending  .sug-hdr { color: var(--text-muted); }
+
+/* ── PER-STATUS HELPER NOTES ─────────────────────────────────────────────── */
+.sug-note {
+  font-size: 0.77rem;
+  line-height: 1.5;
+  border-top: 1px solid rgba(0,0,0,.06);
+  padding-top: 8px;
+  margin-top: 6px;
+}
+.sug-note a { text-decoration: underline; }
+
+.sug-note-ready    { color: var(--text-2); border-top-color: #bfdbfe; }
+.sug-note-ready a  { color: var(--accent); }
+.sug-note-approved { color: var(--ok); border-top-color: var(--ok-border); }
+.sug-note-rejected { color: var(--warn); border-top-color: var(--warn-border); font-weight: 500; }
+.sug-note-pending  { color: var(--text-muted); }
+.sug-note-pending a { color: var(--accent); }
+
+.gh-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+/* ── REJECTED FIX BUTTON ─────────────────────────────────────────────────── */
+.btn-pr-rejected {
+  background: var(--surface);
+  color: var(--warn);
+  border-color: var(--warn-border);
+  font-size: 0.75rem;
+  padding: 4px 11px;
+}
+.btn-pr-rejected:hover { background: var(--warn-bg); }
+
 /* ── RESPONSIVE ──────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-title { font-size: 0.92rem; }

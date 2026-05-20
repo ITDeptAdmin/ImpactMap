@@ -42,9 +42,11 @@ The goal of this repository is to allow non-technical staff to update map data t
 
 9. Wait for the green checkmark in the **Actions** tab.
 
-10. If there are any rows that need review, check:
+10. Refresh the **Impact Map Update Center** and check the Review Queue.
+    If the queue shows zero, you are done.
+    If rows appear, follow the review steps in the Update Center.
 
-   `/output/geocode_review.csv`
+    Dashboard: `https://itdeptadmin.github.io/ImpactMap/docs/geocode-review/`
 
 ---
 
@@ -82,6 +84,34 @@ Do not rename:
 - `/output/ImpactMap_Dataset.geojson`
 
 If these files are renamed, the map may break.
+
+---
+
+# Impact Map Update Center
+
+The Impact Map Update Center is the staff-facing dashboard for reviewing and managing map data.
+
+**Dashboard URL:**
+
+```
+https://itdeptadmin.github.io/ImpactMap/docs/geocode-review/
+```
+
+Staff use the Update Center to:
+
+- **Download Current CSV** — always download the latest before editing
+- **Upload Updated CSV** — opens the GitHub file upload page
+- **Review Queue** — rows that need a human to verify the suggested location
+- **Suggested Fixes** — one per review row; staff approve or reject via GitHub
+
+When a row cannot be automatically geocoded with confidence, the system creates a Suggested Fix (a GitHub Pull Request on a branch named `geocode-suggestion/row-{N}`). Staff can verify the suggested location on Google Maps, then approve it (merge) or reject it (close) directly from the dashboard.
+
+Approved Suggested Fixes update one CSV row and rebuild the map automatically.
+Rejected Suggested Fixes leave the row in the Review Queue until the CSV is manually corrected.
+
+Suggested Fix branches (`geocode-suggestion/row-{N}`) are temporary. After approving or rejecting, click **Delete branch** on GitHub to clean up. To do this automatically, enable **Settings → General → Pull Requests → Automatically delete head branches**. Deleting these branches does not affect map data, the CSV, `main`, or `staging`.
+
+The dashboard is hosted on GitHub Pages and is **read-only** — no data is sent from it. All changes go through GitHub.
 
 ---
 
@@ -191,9 +221,17 @@ It:
 
 - Reads the master CSV
 - Fills missing coordinates when safe
-- Uses Mapbox geocoding when needed
+- Uses Mapbox geocoding when needed (with validation)
 - Creates a geocode review file
 - Builds the GeoJSON file used by the website
+
+### `/scripts/apply_geocode_suggestions.py`
+
+Applies a single suggested coordinate to the CSV and rebuilds. Called by the Suggested Fix workflow for each review row.
+
+### `/scripts/create_row_prs.py`
+
+Creates one GitHub Pull Request (Suggested Fix) per review row that has suggested coordinates. Used by the `create-geocode-review-pr.yml` workflow.
 
 ---
 
@@ -244,6 +282,20 @@ Because multiple staff may use the same GitHub login, the commit message should 
 
 ---
 
+## `/docs/geocode-review`
+
+The Impact Map Update Center dashboard files.
+
+- `index.html` — dashboard page
+- `app.js` — data loading, card rendering, GitHub API calls
+- `style.css` — dashboard styles
+
+Hosted on GitHub Pages at `https://itdeptadmin.github.io/ImpactMap/docs/geocode-review/`.
+
+GitHub Pages must be configured to serve from the repository root (`/`), not the `docs/` folder.
+
+---
+
 ## `/.github/workflows`
 
 GitHub Actions automation.
@@ -261,6 +313,14 @@ When the CSV is updated, the workflow:
 5. Generates the GeoJSON file.
 6. Updates the audit log.
 7. Commits generated updates back to the repository.
+
+### `/.github/workflows/create-geocode-review-pr.yml`
+
+Runs automatically after `Build Impact Map GeoJSON` completes.
+
+Creates one Pull Request (Suggested Fix) per review row that has suggested coordinates. Each PR targets a branch named `geocode-suggestion/row-{N}`. Staff approve or reject Suggested Fixes from the Impact Map Update Center.
+
+Can also be triggered manually from the Actions tab.
 
 ---
 
@@ -368,6 +428,25 @@ After staging is tested and approved, changes can be merged into `main`.
 
 ---
 
+# GitHub Pages Setup
+
+The Impact Map Update Center is hosted on GitHub Pages.
+
+**Required configuration:**
+
+```
+Repository → Settings → Pages → Source → Deploy from branch
+Branch: main (or staging)    Folder: / (root)
+```
+
+The dashboard **must** be served from the repository root. If the folder is set to `docs/`, the data file paths will not resolve correctly.
+
+**Dashboard path:** `/docs/geocode-review/`
+
+**Full URL:** `https://itdeptadmin.github.io/ImpactMap/docs/geocode-review/`
+
+---
+
 # Mapbox
 
 The Impact Map uses Mapbox for map rendering.
@@ -457,11 +536,15 @@ Common causes:
 
 ## Rows need review
 
-Open:
+Open the **Impact Map Update Center** dashboard:
 
-`/output/geocode_review.csv`
+```
+https://itdeptadmin.github.io/ImpactMap/docs/geocode-review/
+```
 
-Fix the listed rows in the master CSV, then commit the CSV again.
+The Review Queue shows all rows that need attention with status badges, map location links, and Suggested Fix buttons. Follow the on-screen steps to approve or reject each suggestion, or fix the CSV manually if no suggestion is available.
+
+The raw review data is also available at `/output/geocode_review.csv` for technical reference.
 
 ---
 

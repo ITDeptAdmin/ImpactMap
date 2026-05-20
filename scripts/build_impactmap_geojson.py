@@ -17,6 +17,7 @@
 import csv
 import json
 import os
+import re
 import sys
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode
@@ -67,10 +68,12 @@ REVIEW_HEADERS = [
     "suggested_source",
 ]
 
-# If Mapbox returns one of these confidence values, we accept it.
-# If Mapbox does not include match_code/confidence, we still accept the first coordinate
-# because some global addresses may not include the same metadata.
+# Mapbox confidence values that can be auto-approved.
 ACCEPTED_MAPBOX_CONFIDENCE = {"exact", "high", "medium"}
+
+# For U.S. rows, only a Mapbox result with this feature type is eligible for auto-fill.
+# Broader types (place, region, postcode, street, district, locality, country) go to review.
+US_ACCEPTED_FEATURE_TYPES = {"address"}
 
 # Philippines place-level geocoding fallback.
 # Used only when country=Philippines but no city/region/county data exists at all.
@@ -349,6 +352,66 @@ def build_philippines_place_queries(row: Dict[str, str], header_map: Dict[str, O
     return queries
 
 
+def extract_street_number(address: str) -> Optional[str]:
+    """Return the leading street number from a U.S. address string, or None.
+
+    Matches patterns like "123", "123A", "123-125" at the start of the address.
+    Returns None when the address does not begin with a numeric street number.
+    """
+    m = re.match(r'^(\d[\d\-]*[A-Za-z]?)', address.strip())
+    return m.group(1) if m else None
+
+
+def address_contains_number(address: str, number: str) -> bool:
+    """Return True if *number* appears as a word-boundary token inside *address*."""
+    if not number:
+        return True
+    return bool(re.search(r'\b' + re.escape(number) + r'\b', address, re.IGNORECASE))
+
+
+def _check_us_auto_approve(
+    source_address: str,
+    feature_type: str,
+    sug_address: str,
+    confidence: str,
+) -> Tuple[bool, str, str]:
+    """
+    Apply U.S.-specific auto-approval checks on a Mapbox geocode result.
+
+    Returns: (approved, reason_if_rejected, reject_type)
+      reject_type is one of: "confidence", "broad", "street_number", or ""
+    """
+    # 1. Confidence must be explicit and accepted (exact/high/medium).
+    #    Missing or "unknown" confidence is not safe to auto-fill for U.S. rows.
+    if not confidence or confidence not in ACCEPTED_MAPBOX_CONFIDENCE:
+        label = confidence if confidence else "missing"
+        return (
+            False,
+            f"Mapbox returned a {label}-confidence result — review before accepting.",
+            "confidence",
+        )
+
+    # 2. Feature type must be address-level, not city/place/region/street/postcode.
+    if feature_type not in US_ACCEPTED_FEATURE_TYPES:
+        label = feature_type if feature_type else "unknown type"
+        return (
+            False,
+            f"Mapbox returned a broad/non-address result ({label}) — review before accepting.",
+            "broad",
+        )
+
+    # 3. If the source address has a street number, the Mapbox result must include it.
+    src_number = extract_street_number(source_address)
+    if src_number and not address_contains_number(sug_address, src_number):
+        return (
+            False,
+            f"Mapbox result did not include the source street number ({src_number}) — review before accepting.",
+            "street_number",
+        )
+
+    return True, "", ""
+
+
 def get_mapbox_token() -> str:
     return (
         os.environ.get("MAPBOX_GEOCODING_TOKEN")
@@ -360,13 +423,15 @@ def get_mapbox_token() -> str:
 
 def mapbox_forward_geocode(
     query: str, token: str
-) -> Tuple[Optional[Tuple[float, float]], str, Optional[Tuple[float, float]], str, str]:
+) -> Tuple[Optional[Tuple[float, float]], str, Optional[Tuple[float, float]], str, str, str]:
     """
-    Returns: (accepted_coord, note, suggested_coord, suggested_address, suggested_confidence)
+    Returns: (accepted_coord, note, suggested_coord, suggested_address, suggested_confidence, feature_type)
 
     accepted_coord is None when confidence is too low or the request failed.
     suggested_coord holds the raw Mapbox result even when it is not accepted, so it
     can be written to the review file as a human-readable hint.
+    feature_type is the Mapbox feature_type string (e.g. "address", "place", "region").
+    U.S.-specific validation (feature_type check, street-number check) is done by the caller.
     """
     params = {
         "q": query,
@@ -383,42 +448,43 @@ def mapbox_forward_geocode(
         with urlopen(req, timeout=20) as response:
             data = json.loads(response.read().decode("utf-8"))
     except HTTPError as e:
-        return None, f"Mapbox HTTP error: {e.code}", None, "", ""
+        return None, f"Mapbox HTTP error: {e.code}", None, "", "", ""
     except URLError as e:
-        return None, f"Mapbox URL error: {e.reason}", None, "", ""
+        return None, f"Mapbox URL error: {e.reason}", None, "", "", ""
     except Exception as e:
-        return None, f"Mapbox request error: {e}", None, "", ""
+        return None, f"Mapbox request error: {e}", None, "", "", ""
 
     features = data.get("features") or []
     if not features:
-        return None, "Mapbox returned no results", None, "", ""
+        return None, "Mapbox returned no results", None, "", "", ""
 
     feature = features[0]
     coords = (((feature.get("geometry") or {}).get("coordinates")) or [])
 
     if len(coords) < 2:
-        return None, "Mapbox result did not include coordinates", None, "", ""
+        return None, "Mapbox result did not include coordinates", None, "", "", ""
 
     lon = to_float(coords[0])
     lat = to_float(coords[1])
 
     if lat is None or lon is None:
-        return None, "Mapbox coordinates were not numeric", None, "", ""
+        return None, "Mapbox coordinates were not numeric", None, "", "", ""
 
     props = feature.get("properties") or {}
     match_code = props.get("match_code") or {}
     confidence = str(match_code.get("confidence") or "").strip().lower()
     full_address = props.get("full_address") or props.get("name") or query
+    feature_type = str(props.get("feature_type") or "").strip().lower()
 
     suggested_coord = rounded_coord_pair(lat, lon)
 
-    # Some Mapbox responses may not include match_code/confidence.
-    # If confidence exists but is low, send to review. If no confidence exists, accept.
+    # Reject explicitly low confidence for all regions.
+    # Note: absent/unknown confidence for U.S. rows is rejected by the caller's stricter check.
     if confidence and confidence not in ACCEPTED_MAPBOX_CONFIDENCE:
-        return None, f"Mapbox confidence was too low: {confidence}", suggested_coord, full_address, confidence
+        return None, f"Mapbox confidence was too low: {confidence}", suggested_coord, full_address, confidence, feature_type
 
     accepted_coord = rounded_coord_pair(lat, lon)
-    return accepted_coord, f"Mapbox geocoded: {full_address}", accepted_coord, full_address, confidence or "unknown"
+    return accepted_coord, f"Mapbox geocoded: {full_address}", accepted_coord, full_address, confidence or "unknown", feature_type
 
 
 def mapbox_place_geocode_philippines(
@@ -529,7 +595,10 @@ def enrich_missing_coordinates(
 
     changed = 0
     matched_existing = 0
-    geocoded = 0
+    mapbox_auto_approved = 0
+    mapbox_sent_to_review = 0
+    mapbox_broad_result_reviewed = 0
+    mapbox_street_number_mismatch_reviewed = 0
     philippines_place_geocoded = 0
     philippines_country_fallback = 0
     review_rows: List[Dict[str, str]] = []
@@ -635,17 +704,38 @@ def enrich_missing_coordinates(
             ))
             continue
 
-        accepted, note, sug_coord, sug_address, sug_confidence = mapbox_forward_geocode(query, token)
+        accepted, note, sug_coord, sug_address, sug_confidence, feature_type = mapbox_forward_geocode(query, token)
 
         sug_lat = sug_coord[0] if sug_coord else None
         sug_lon = sug_coord[1] if sug_coord else None
         sug_source = "Mapbox (not auto-approved)" if sug_coord else ""
 
+        # For U.S. rows, apply additional checks before auto-filling:
+        #   - confidence must be explicit (exact/high/medium), not missing/unknown
+        #   - feature type must be address-level, not place/region/postcode/street
+        #   - if source has a street number, Mapbox result must include the same number
+        if accepted and is_usa(get(row, header_map, "country")):
+            ok, reject_reason, reject_type = _check_us_auto_approve(
+                source_address=get(row, header_map, "address"),
+                feature_type=feature_type,
+                sug_address=sug_address,
+                confidence=sug_confidence,
+            )
+            if not ok:
+                note = reject_reason
+                accepted = None
+                mapbox_sent_to_review += 1
+                if reject_type == "broad":
+                    mapbox_broad_result_reviewed += 1
+                elif reject_type == "street_number":
+                    mapbox_street_number_mismatch_reviewed += 1
+                sug_source = "Mapbox (not auto-approved — US validation)"
+
         if accepted and not ambiguous:
             set_cell(row, header_map, "latitude", f"{accepted[0]:.6f}")
             set_cell(row, header_map, "longitude", f"{accepted[1]:.6f}")
             changed += 1
-            geocoded += 1
+            mapbox_auto_approved += 1
         elif accepted and ambiguous:
             # Mapbox is confident but an earlier CSV key was ambiguous — a human should verify.
             reason = (
@@ -685,7 +775,10 @@ def enrich_missing_coordinates(
     stats = {
         "coordinate_rows_updated": changed,
         "matched_existing": matched_existing,
-        "mapbox_geocoded": geocoded,
+        "mapbox_auto_approved": mapbox_auto_approved,
+        "mapbox_sent_to_review": mapbox_sent_to_review,
+        "mapbox_broad_result_reviewed": mapbox_broad_result_reviewed,
+        "mapbox_street_number_mismatch_reviewed": mapbox_street_number_mismatch_reviewed,
         "philippines_place_geocoded": philippines_place_geocoded,
         "philippines_country_fallback": philippines_country_fallback,
         "review_rows": len(review_rows),
@@ -695,7 +788,10 @@ def enrich_missing_coordinates(
         "Coordinate enrichment: "
         f"changed={stats['coordinate_rows_updated']}, "
         f"matched_existing={stats['matched_existing']}, "
-        f"mapbox_geocoded={stats['mapbox_geocoded']}, "
+        f"mapbox_auto_approved={stats['mapbox_auto_approved']}, "
+        f"mapbox_sent_to_review={stats['mapbox_sent_to_review']}, "
+        f"(broad={stats['mapbox_broad_result_reviewed']}, "
+        f"street_num={stats['mapbox_street_number_mismatch_reviewed']}), "
         f"philippines_place_geocoded={stats['philippines_place_geocoded']}, "
         f"philippines_country_fallback={stats['philippines_country_fallback']}, "
         f"review_rows={stats['review_rows']}"

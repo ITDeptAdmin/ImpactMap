@@ -16,7 +16,7 @@
 // ── CONFIG ────────────────────────────────────────────────────────────────
 const DATA_BASE    = "../..";
 const GITHUB_REPO   = "ITDeptAdmin/ImpactMap";
-const GITHUB_BRANCH = "staging";
+const GITHUB_BRANCH = "main";
 
 const REVIEW_CSV_URL   = `${DATA_BASE}/output/geocode_review.csv`;
 const BUILD_STATS_URL  = `${DATA_BASE}/output/build_stats.json`;
@@ -24,6 +24,7 @@ const CSV_DOWNLOAD_URL = `${DATA_BASE}/data/Master_Clinic_ImpactMap.csv`;
 const GEO_DOWNLOAD_URL = `${DATA_BASE}/output/ImpactMap_Dataset.geojson`;
 
 const GITHUB_BASE        = `https://github.com/${GITHUB_REPO}`;
+const GITHUB_API_BASE    = `https://api.github.com/repos/${GITHUB_REPO}`;
 const GITHUB_ACTIONS_URL = `${GITHUB_BASE}/actions`;
 const GITHUB_PRS_URL     = `${GITHUB_BASE}/pulls`;
 const GITHUB_CSV_URL     = `${GITHUB_BASE}/blob/${GITHUB_BRANCH}/data/Master_Clinic_ImpactMap.csv`;
@@ -32,10 +33,33 @@ const GITHUB_UPLOAD_URL  = `${GITHUB_BASE}/upload/${GITHUB_BRANCH}/data`;
 // Search URL for open geocode review PRs
 const REVIEW_PRS_SEARCH_URL = `${GITHUB_BASE}/pulls?q=is%3Aopen+is%3Apr+geocode+suggestion`;
 
+// Status labels and icons for row PR status badges
+const STATUS_LABELS = {
+  ready:    "Ready to Review",
+  approved: "Approved — Waiting for Rebuild",
+  rejected: "Rejected — Needs Manual Fix",
+  pending:  "Suggested Fix Not Created Yet",
+  unknown:  "Status Unavailable",
+  loading:  "Checking status…",
+};
+const STATUS_ICONS = {
+  ready:    "🔵",
+  approved: "✅",
+  rejected: "🔴",
+  pending:  "⏳",
+  unknown:  "❓",
+  loading:  "⏳",
+};
+
+// Priority for resolving multiple PRs targeting the same row
+const STATUS_PRIORITY = { ready: 3, approved: 2, rejected: 1, pending: 0 };
+
 // ── STATE ─────────────────────────────────────────────────────────────────
-let ALL_ROWS      = [];
-let currentFilter = "all";
-let searchQuery   = "";
+let ALL_ROWS         = [];
+let currentFilter    = "all";
+let searchQuery      = "";
+let PR_STATUS_MAP    = {};   // row string → {status, prUrl, prNumber}
+let prStatusesLoaded = false;
 
 // ── CSV PARSER ────────────────────────────────────────────────────────────
 function parseCSV(text) {
@@ -135,12 +159,77 @@ async function copyText(text, btn) {
   }
 }
 
+function copySearchText(btn) {
+  copyText(btn.dataset.searchText, btn);
+}
+
 // ── STATUS INDICATOR ──────────────────────────────────────────────────────
 function setStatus(cls, label) {
   const dot  = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
   if (dot)  dot.className = "status-dot " + cls;
   if (text) text.textContent = label;
+}
+
+// ── PR STATUS FETCHER ─────────────────────────────────────────────────────
+// Fetches all geocode-suggestion PRs from GitHub (unauthenticated, public repo).
+// Builds PR_STATUS_MAP[rowNum] = {status, prUrl, prNumber}.
+// Gracefully degrades — never throws; on failure, cards show "Status Unavailable".
+async function fetchPRStatuses() {
+  try {
+    let allPRs = [];
+    for (let page = 1; page <= 3; page++) {
+      const url = `${GITHUB_API_BASE}/pulls?state=all&per_page=100&page=${page}`;
+      const r = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+      if (!r.ok) {
+        if (r.status === 403 || r.status === 429) {
+          console.warn("GitHub API rate limit reached — row statuses unavailable");
+        } else {
+          console.warn(`GitHub API error ${r.status} — row statuses unavailable`);
+        }
+        break;
+      }
+      const data = await r.json();
+      if (!Array.isArray(data)) break;
+      allPRs = allPRs.concat(data);
+      if (data.length < 100) break;
+    }
+
+    PR_STATUS_MAP = {};
+    for (const pr of allPRs) {
+      const branch = pr.head && pr.head.ref ? pr.head.ref : "";
+      const m = branch.match(/^geocode-suggestion\/row-(\d+)$/);
+      if (!m) continue;
+      const rowNum = m[1];
+
+      const newStatus = pr.state === "open"
+        ? "ready"
+        : (pr.merged_at ? "approved" : "rejected");
+
+      const existing = PR_STATUS_MAP[rowNum];
+      if (!existing ||
+          (STATUS_PRIORITY[newStatus] || 0) > (STATUS_PRIORITY[existing.status] || 0)) {
+        PR_STATUS_MAP[rowNum] = {
+          status:   newStatus,
+          prUrl:    pr.html_url,
+          prNumber: pr.number,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load PR statuses:", e);
+  }
+  // Mark loaded regardless of success so cards stop showing "Checking status…"
+  prStatusesLoaded = true;
+}
+
+// Returns the status object for a given review row.
+function rowStatus(r) {
+  if (!hasSuggestion(r))  return { status: "no-suggestion", prInfo: null };
+  if (!prStatusesLoaded)  return { status: "loading",       prInfo: null };
+  const info = PR_STATUS_MAP[String(r.row)];
+  if (!info)              return { status: "pending",       prInfo: null };
+  return { status: info.status, prInfo: info };
 }
 
 // ── MAIN STATS (3 primary cards) ──────────────────────────────────────────
@@ -238,8 +327,8 @@ function renderPrimaryActions(rows) {
          target="_blank" rel="noopener noreferrer">
         <span class="primary-btn-icon">🔀</span>
         <div>
-          <div class="primary-btn-label">Review Pending Suggestions (${esc(count)})</div>
-          <div class="primary-btn-sub">Search open approval PRs on GitHub</div>
+          <div class="primary-btn-label">Review Suggested Fixes (${esc(count)})</div>
+          <div class="primary-btn-sub">Open Suggested Fixes on GitHub</div>
         </div>
       </a>`;
   }
@@ -255,8 +344,8 @@ function renderAdvancedActions() {
     { href: `${DATA_BASE}/output/geocode_review.csv`,     icon: "⬇", label: "Download Geocode Review CSV", dl: "geocode_review.csv" },
     { href: `${DATA_BASE}/output/build_stats.json`,       icon: "⬇", label: "Download Build Stats JSON",   dl: "build_stats.json" },
     { href: GITHUB_CSV_URL,    icon: "📄", label: "View CSV on GitHub",     target: true },
-    { href: GITHUB_PRS_URL,    icon: "🔀", label: "All Pull Requests",      target: true },
-    { href: GITHUB_ACTIONS_URL,icon: "⚙", label: "GitHub Actions (builds)", target: true },
+    { href: GITHUB_PRS_URL,    icon: "🔀", label: "All Suggested Fixes",   target: true },
+    { href: GITHUB_ACTIONS_URL,icon: "⚙", label: "Map Update Logs",        target: true },
   ];
   return items.map(a => {
     const dl     = a.dl     ? `download="${esc(a.dl)}"` : "";
@@ -290,54 +379,159 @@ function csvEditUrl() {
   return `${GITHUB_BASE}/edit/${GITHUB_BRANCH}/data/Master_Clinic_ImpactMap.csv`;
 }
 
+// ── BUILD SEARCH TEXT ─────────────────────────────────────────────────────
+// Returns a raw CSV-fragment that can be found with Ctrl+F in the GitHub CSV
+// editor (which shows the raw file). event,expedition are consecutive columns,
+// so "1820,1819" will match exactly one row.
+function buildSearchText(r) {
+  const ev  = (r.event      || "").trim();
+  const exp = (r.expedition || "").trim();
+  if (ev && exp) return `${ev},${exp}`;
+  if (ev)        return `${ev},`;
+  if (exp)       return `,${exp},`;
+  const addr = (r.address || "").trim();
+  const zip  = (r.zipcode  || "").trim();
+  const city = (r.city     || "").trim();
+  const ctry = (r.country  || "").trim();
+  return addr || zip || city || ctry || String(r.row || "");
+}
+
 // ── REVIEW CARD ───────────────────────────────────────────────────────────
 function renderCard(r) {
-  const sug      = hasSuggestion(r);
-  const location = [r.city, r.state || r.non_us_state, r.country].filter(Boolean).join(", ");
-  const coords   = sug ? `${r.suggested_latitude}, ${r.suggested_longitude}` : "";
-  const mapsUrl  = sug
+  const sug        = hasSuggestion(r);
+  const { status, prInfo } = rowStatus(r);
+  const location   = [r.city, r.state || r.non_us_state, r.country].filter(Boolean).join(", ");
+  const coords     = sug ? `${r.suggested_latitude}, ${r.suggested_longitude}` : "";
+  const mapsUrl    = sug
     ? `https://www.google.com/maps?q=${encodeURIComponent(r.suggested_latitude)},${encodeURIComponent(r.suggested_longitude)}`
     : "";
 
-  // CSV line = row number + 1 (header row offset)
   const csvLineNum = r.row ? Number(r.row) + 1 : "";
   const csvRowUrl  = `${GITHUB_CSV_URL}#L${csvLineNum}`;
 
-  const sugBlock = sug ? `
-    <div class="sug-block">
-      <div class="sug-hdr">
-        📍 Suggested Coordinates
-        ${confidenceBadge(r.suggested_confidence)}
-        <span class="sug-source">${esc(r.suggested_source)}</span>
-      </div>
-      <div class="sug-addr">${esc(r.suggested_address)}</div>
-      <div class="sug-coords">${esc(coords)}</div>
-      <div class="sug-actions">
-        <a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
-           class="btn btn-maps">📍 Open in Google Maps</a>
-        <a href="${esc(rowPrSearchUrl(r.row))}" target="_blank" rel="noopener noreferrer"
-           class="btn btn-pr-link" title="Searches GitHub for the approval PR for this row">
-          🔍 Search for Approval PR
-        </a>
-        <button class="btn btn-sm-copy"
-                onclick="copyText(${JSON.stringify(coords)}, this)"
-                title="Copy suggested coordinates">📋 Copy coords</button>
-      </div>
-      <div class="sug-approve-note">
-        <strong>To approve:</strong> find and merge the approval PR on GitHub.
-        <strong>To reject:</strong> close the PR without merging, then fix the CSV.<br>
-        <span class="pr-not-ready-note">
-          If no PR appears, run <strong>Create Geocode Review PRs</strong> from
-          <a href="${esc(GITHUB_ACTIONS_URL)}" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
-          or wait for it to finish automatically.
-        </span>
-      </div>
-    </div>` : `
-    <div class="sug-block no-sug-block">
-      <div class="sug-hdr">❓ No Suggestion Available</div>
-      <p class="no-sug-text">The system could not find a confident location for this row.
-        Fix the CSV by adding a better street address or by entering the Latitude and Longitude directly.</p>
-    </div>`;
+  // Status badge (only for rows that have a suggestion)
+  const statusBadgeHtml = sug ? `
+    <span class="status-badge ${esc(status)}" title="${esc(STATUS_LABELS[status] || status)}">
+      ${STATUS_ICONS[status] || "❓"} ${esc(STATUS_LABELS[status] || status)}
+    </span>` : "";
+
+  // Suggestion / no-suggestion block
+  let sugBlock;
+  if (sug) {
+    // Choose the best PR link — direct if we have it, search fallback otherwise
+    const reviewUrl  = prInfo ? prInfo.prUrl : rowPrSearchUrl(r.row);
+    const reviewTitle = prInfo
+      ? `Opens the Suggested Fix directly on GitHub`
+      : `Searches GitHub for the Suggested Fix for this row`;
+
+    // Per-status action buttons and helper text
+    let actionBtnsHtml = "";
+    let helperHtml = "";
+
+    if (status === "approved") {
+      // PR merged — no action needed, map will rebuild
+      helperHtml = `
+        <div class="sug-note sug-note-approved">
+          ✅ This row was approved and the map is waiting to rebuild. It will disappear from this queue after the next build. No action needed.
+        </div>`;
+    } else if (status === "rejected") {
+      actionBtnsHtml = `
+        <div class="sug-actions">
+          <a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-maps">1. Check Map Location</a>
+          <a href="${esc(reviewUrl)}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-pr-rejected" title="${esc(reviewTitle)}">
+            📋 View Rejected Fix
+          </a>
+          <button class="btn btn-sm-copy"
+                  onclick="copyText(${JSON.stringify(coords)}, this)"
+                  title="Copy suggested coordinates">📋 Copy Coordinates</button>
+        </div>`;
+      helperHtml = `
+        <div class="sug-note sug-note-rejected">
+          🔴 This Suggested Fix was rejected. Next step: fix this row in the CSV, then upload the CSV again.
+        </div>`;
+    } else if (status === "pending") {
+      actionBtnsHtml = `
+        <div class="sug-actions">
+          <a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-maps">1. Check Map Location</a>
+          <a href="${esc(GITHUB_ACTIONS_URL)}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-pr-link" title="Open GitHub Actions to run Create Review Fixes">
+            ⚙ GitHub Actions
+          </a>
+          <button class="btn btn-sm-copy"
+                  onclick="copyText(${JSON.stringify(coords)}, this)"
+                  title="Copy suggested coordinates">📋 Copy Coordinates</button>
+        </div>`;
+      helperHtml = `
+        <div class="sug-note sug-note-pending">
+          ⏳ No Suggested Fix has been created yet. Run <strong>Create Review Fixes</strong> from
+          <a href="${esc(GITHUB_ACTIONS_URL)}" target="_blank" rel="noopener noreferrer">GitHub Actions</a>,
+          or wait a few minutes for the system to finish automatically.
+        </div>`;
+    } else {
+      // ready, loading, unknown — show full action buttons
+      actionBtnsHtml = `
+        <div class="sug-actions">
+          <a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-maps">1. Check Map Location</a>
+          <a href="${esc(reviewUrl)}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-pr-link" title="${esc(reviewTitle)}">
+            🔍 2. Review Suggested Fix
+          </a>
+          <button class="btn btn-sm-copy"
+                  onclick="copyText(${JSON.stringify(coords)}, this)"
+                  title="Copy suggested coordinates">📋 Copy Coordinates</button>
+        </div>`;
+      if (status === "ready") {
+        helperHtml = `
+          <div class="sug-note sug-note-ready">
+            🔵 If the map location looks correct, open the Suggested Fix and approve it.
+            If it looks wrong, reject it and manually fix the CSV.
+            <span class="gh-hint">(On GitHub: green <strong>Merge pull request</strong> to approve,
+            or <strong>Close pull request</strong> to reject)</span>
+          </div>`;
+      } else if (status === "loading") {
+        helperHtml = `
+          <div class="sug-note sug-note-pending">
+            ⏳ Checking Suggested Fix status…
+          </div>`;
+      } else {
+        // unknown
+        helperHtml = `
+          <div class="sug-note sug-note-pending">
+            ❓ Status unavailable.
+            <a href="${esc(rowPrSearchUrl(r.row))}" target="_blank" rel="noopener noreferrer">Search GitHub</a>
+            for the Suggested Fix directly.
+          </div>`;
+      }
+    }
+
+    sugBlock = `
+      <div class="sug-block sug-status-${esc(status)}">
+        <div class="sug-hdr">
+          📍 Suggested Coordinates
+          ${confidenceBadge(r.suggested_confidence)}
+          <span class="sug-source">${esc(r.suggested_source)}</span>
+        </div>
+        <div class="sug-addr">${esc(r.suggested_address)}</div>
+        <div class="sug-coords">${esc(coords)}</div>
+        ${actionBtnsHtml}
+        ${helperHtml}
+      </div>`;
+  } else {
+    sugBlock = `
+      <div class="sug-block no-sug-block">
+        <div class="sug-hdr">❓ No Suggestion Available</div>
+        <p class="no-sug-text">The system could not find a confident location for this row.
+          Fix the CSV by adding a better street address or by entering the Latitude and Longitude directly.</p>
+      </div>`;
+  }
+
+  // Build a raw CSV-fragment for Ctrl+F in the GitHub CSV editor.
+  // event,expedition (e.g. "1820,1819") appears as consecutive columns in the raw CSV.
+  const searchText = buildSearchText(r);
 
   // CSV action buttons — always shown on every card
   const csvActions = `
@@ -348,22 +542,32 @@ function renderCard(r) {
            class="btn btn-csv" title="View CSV file on GitHub near line ${csvLineNum}">
           📄 View CSV Row
         </a>
+        <button class="btn btn-csv"
+                data-search-text="${esc(searchText)}"
+                onclick="copySearchText(this)"
+                title="Copies raw CSV text like 1820,1819 so you can press Ctrl+F in the CSV editor">
+          🔍 Copy Search Text
+        </button>
         <a href="${esc(csvEditUrl())}" target="_blank" rel="noopener noreferrer"
            class="btn btn-csv" title="Open the CSV file in the GitHub editor">
           ✏️ Edit CSV File
         </a>
       </div>
-      <p class="csv-help-note">Use <strong>View CSV Row</strong> to find the row in the file.
-        Use <strong>Edit CSV File</strong> to manually fix the address or Latitude/Longitude.</p>
+      <p class="csv-help-note">Use <strong>View CSV Row</strong> to see the exact row.
+        Use <strong>Copy Search Text</strong>, then <strong>Edit CSV File</strong> and press
+        <strong>Ctrl+F</strong> — the copied text matches the raw CSV so the row is easy to find.</p>
     </div>`;
 
+  const cardClass = sug ? `status-${status}` : "status-no-suggestion";
+
   return `
-    <div class="review-card ${sug ? "has-sug" : "no-sug"}">
+    <div class="review-card ${cardClass}">
       <div class="card-hdr">
         <span class="row-chip ${sug ? "sug" : ""}">ROW ${esc(r.row)}</span>
         <span class="card-event">Event&nbsp;${esc(r.event)} · Exp.&nbsp;${esc(r.expedition)}</span>
         <span class="card-location">${esc(location) || "<em>No location</em>"}</span>
         <span class="card-year">${esc(r.year)}</span>
+        ${statusBadgeHtml}
       </div>
       <div class="card-body">
         <div>
@@ -388,14 +592,15 @@ function renderCard(r) {
 function applyFiltersAndSearch() {
   const listEl      = document.getElementById("review-list");
   const countEl     = document.getElementById("filter-count");
-  const copyAllEl   = document.getElementById("copy-all-btn");
   const prsBtnEl    = document.getElementById("review-prs-btn");
   const queueNoteEl = document.getElementById("queue-pr-note");
 
   let visible = ALL_ROWS;
 
-  if (currentFilter === "with-suggestion") {
-    visible = visible.filter(hasSuggestion);
+  if (currentFilter === "ready") {
+    visible = visible.filter(r => rowStatus(r).status === "ready");
+  } else if (currentFilter === "rejected") {
+    visible = visible.filter(r => rowStatus(r).status === "rejected");
   } else if (currentFilter === "no-suggestion") {
     visible = visible.filter(r => !hasSuggestion(r));
   }
@@ -418,8 +623,7 @@ function applyFiltersAndSearch() {
           The build workflow updates this page automatically after each
           upload — check back after the next CSV update.</p>
       </div>`;
-    countEl.style.display   = "none";
-    copyAllEl.style.display = "none";
+    countEl.style.display = "none";
     if (prsBtnEl)    prsBtnEl.style.display    = "none";
     if (queueNoteEl) queueNoteEl.style.display = "none";
     return;
@@ -435,8 +639,7 @@ function applyFiltersAndSearch() {
         <div class="empty-title" style="color:var(--text-muted)">No rows match your filter</div>
         <p class="empty-sub">Try a different filter or clear the search box.</p>
       </div>`;
-    countEl.style.display   = "none";
-    copyAllEl.style.display = "none";
+    countEl.style.display = "none";
     return;
   }
 
@@ -447,16 +650,6 @@ function applyFiltersAndSearch() {
     countEl.style.display = "block";
   } else {
     countEl.style.display = "none";
-  }
-
-  const sugVisible = visible.filter(hasSuggestion);
-  if (sugVisible.length > 0) {
-    const nums = sugVisible.map(r => r.row).filter(Boolean).join(", ");
-    copyAllEl.style.display = "inline-flex";
-    copyAllEl.onclick = e => copyText(nums, e.currentTarget);
-    copyAllEl.textContent = `📋 Copy row numbers (${sugVisible.length})`;
-  } else {
-    copyAllEl.style.display = "none";
   }
 }
 
@@ -566,6 +759,12 @@ async function init() {
 
     initFilters();
     applyFiltersAndSearch();
+
+    // Fetch PR statuses in background; re-render cards when done.
+    // Only needed if there are rows with suggestions.
+    if (ALL_ROWS.some(hasSuggestion)) {
+      fetchPRStatuses().then(() => applyFiltersAndSearch());
+    }
 
   } catch (err) {
     loadingEl.innerHTML = `
