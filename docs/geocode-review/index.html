@@ -71,7 +71,7 @@
           </div>
           <div class="step">
             <span class="step-num">5</span>
-            <span>Use <strong>Search for Approval PR</strong> on the review card to find the row's Pull Request. Merge it if the location is correct, or close it if it's wrong. If no PR appears yet, run <strong>Create Geocode Review PRs</strong> from GitHub Actions.</span>
+            <span>For each row in the Review Queue, click <strong>1. Check Map Location</strong> to verify the pin, then click <strong>2. Review Suggested Fix</strong>. Approve it if the location is correct, or reject it and fix the CSV if it is wrong.</span>
           </div>
         </div>
 
@@ -82,7 +82,7 @@
 
             <div class="help-block">
               <h3 class="help-heading">What this dashboard is</h3>
-              <p>This page is <strong>read-only</strong>. It shows the current state of the Impact Map data. No changes can be made from this page — all changes go through GitHub Pull Requests, which require repository write access.</p>
+              <p>This page is <strong>read-only</strong>. It shows the current state of the Impact Map data. No changes can be made from this page — all map updates are applied through GitHub, which requires repository write access.</p>
             </div>
 
             <div class="help-block">
@@ -101,29 +101,44 @@
               <h3 class="help-heading">Review Queue — what it means</h3>
               <p>When a row appears in the Review Queue, it means the system could not automatically fill in coordinates with enough confidence. A human needs to verify the suggestion.</p>
               <ul class="help-list">
-                <li><strong>Has Suggestion:</strong> The system found a likely location. Open the PR for that row, verify the Google Maps link, then merge or close the PR.</li>
-                <li><strong>No Suggestion:</strong> The system could not find a location at all. Fix the CSV by adding a better street address or by entering the Latitude and Longitude directly in the CSV.</li>
+                <li><strong>Has Suggestion:</strong> The system found a likely location. Check the map pin, then approve or reject the Suggested Fix.</li>
+                <li><strong>No Suggestion:</strong> The system could not find a location at all. Fix the CSV by adding a better street address or by entering the Latitude and Longitude directly.</li>
               </ul>
             </div>
 
             <div class="help-block">
-              <h3 class="help-heading">Approving a suggestion (merging a PR)</h3>
+              <h3 class="help-heading">Approving a Suggested Fix</h3>
               <ol class="help-list">
-                <li>Click <strong>Search for Approval PR</strong> on the review card. This searches GitHub for the open PR for that row.</li>
-                <li>Check the Google Maps link in the PR to confirm the location looks correct.</li>
-                <li>If it looks right, click <strong>Merge pull request</strong> on GitHub.</li>
-                <li>The map rebuilds automatically after the merge.</li>
+                <li>Click <strong>1. Check Map Location</strong> on the review card to open Google Maps and verify the pin.</li>
+                <li>Click <strong>2. Review Suggested Fix</strong> to open the Suggested Fix on GitHub.</li>
+                <li>If the location looks correct, click the green <strong>Merge pull request</strong> button, then <strong>Confirm merge</strong>.</li>
+                <li>The map rebuilds automatically after approval.</li>
               </ol>
               <p style="margin-top:8px;font-size:0.81rem;color:var(--text-muted)">
-                If no PR appears in the search results, go to
+                If no Suggested Fix appears in the search results, go to
                 <strong>GitHub Actions → Create Geocode Review PRs → Run workflow</strong>
-                to create it manually. PRs are normally created automatically after each build.
+                to create it manually. Suggested Fixes are normally created automatically after each build.
               </p>
             </div>
 
             <div class="help-block">
-              <h3 class="help-heading">Rejecting a suggestion (closing a PR)</h3>
-              <p>If the suggested location looks wrong, <strong>close the PR without merging</strong>. Then fix the CSV by adding a correct address or typing in the Latitude and Longitude directly, and re-upload the CSV.</p>
+              <h3 class="help-heading">Rejecting a Suggested Fix</h3>
+              <p>If the suggested location looks wrong:</p>
+              <ol class="help-list">
+                <li>Click <strong>2. Review Suggested Fix</strong> to open it on GitHub.</li>
+                <li>Scroll to the bottom and click <strong>Close pull request</strong> (do <em>not</em> merge).</li>
+                <li>Fix the CSV by adding a correct address or entering the Latitude and Longitude directly, then re-upload the CSV.</li>
+              </ol>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">What happens when I approve?</h3>
+              <p>The suggested coordinates are saved to the CSV and the map is rebuilt automatically. The row disappears from the Review Queue on the next build.</p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">What happens when I reject?</h3>
+              <p>Nothing changes on the map. The Suggested Fix is closed and the row stays in the Review Queue until you upload a corrected CSV with a better address or the correct coordinates.</p>
             </div>
 
             <div class="help-block warn-block">
@@ -132,7 +147,7 @@
                 <li>Do not rename the CSV file.</li>
                 <li>Do not delete the Latitude or Longitude columns.</li>
                 <li>Do not change column headers unless a developer also updates the build script.</li>
-                <li>Do not merge a PR unless the suggested location on Google Maps looks correct.</li>
+                <li>Do not approve a Suggested Fix unless the location on Google Maps looks correct.</li>
                 <li>Do not enter coordinates in any format other than decimal degrees (e.g. 36.1627, −86.7816).</li>
               </ul>
             </div>
@@ -214,7 +229,10 @@
       <div class="filter-bar" role="search">
         <div class="filter-pills" role="group" aria-label="Filter rows">
           <button class="pill active" data-filter="all">All</button>
-          <button class="pill" data-filter="with-suggestion">Has Suggestion</button>
+          <button class="pill" data-filter="ready">Ready to Review</button>
+          <button class="pill" data-filter="rejected">Rejected / Needs Fix</button>
+          <button class="pill" data-filter="pending">No Suggested Fix Yet</button>
+          <button class="pill" data-filter="approved">Approved</button>
           <button class="pill" data-filter="no-suggestion">No Suggestion</button>
         </div>
         <input id="search-input" type="search" class="search-input"
@@ -224,8 +242,9 @@
       </div>
 
       <p id="queue-pr-note" class="queue-pr-note" style="display:none">
-        Each row with a suggestion gets its own Pull Request. Use <strong>Search for Approval PR</strong>
-        on each card to find it. If no PR appears yet, go to
+        Each row with a suggestion has its own <strong>Suggested Fix</strong>. Click
+        <strong>2. Review Suggested Fix</strong> on each card to open it. If no Suggested Fix
+        appears yet, go to
         <a href="#" id="actions-link-inline" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
         → <strong>Create Geocode Review PRs</strong> → <strong>Run workflow</strong>.
       </p>
