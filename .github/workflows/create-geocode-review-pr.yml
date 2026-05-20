@@ -1,0 +1,60 @@
+name: Create Geocode Review PRs
+
+# Runs automatically after "Build Impact Map GeoJSON" completes successfully.
+# Reads output/geocode_review.csv from the just-built branch.
+# For each row that has suggested coordinates, creates a separate branch and
+# opens a separate pull request so a human with write access can review each
+# suggestion individually.
+#
+# No auto-merge. No secrets exposed. Uses only the built-in GITHUB_TOKEN.
+# Each PR targets the same branch (main or staging) that triggered the build.
+
+on:
+  workflow_run:
+    workflows: ["Build Impact Map GeoJSON"]
+    types:
+      - completed
+  workflow_dispatch:  # manual fallback — runs on whichever branch you select
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-prs:
+    # workflow_run: only when the build succeeded and not the auto-commit loop.
+    # workflow_dispatch: always allowed (manual trigger bypasses those checks).
+    if: >
+      github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch that triggered the build
+        uses: actions/checkout@v4
+        with:
+          # Check out the triggering commit, then pull the latest
+          # (the build job auto-commits updated files after this SHA).
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Pull latest commit from branch (includes build auto-commit)
+        run: |
+          git fetch origin ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          git reset --hard origin/${{ github.event.workflow_run.head_branch || github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create one PR per review row with suggested coordinates
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          GEOCODE_REVIEW_FILE: output/geocode_review.csv
+          BUILD_STATS_FILE: output/build_stats.json
+          MAPBOX_GEOCODING_TOKEN: ${{ secrets.MAPBOX_GEOCODING_TOKEN }}
+        run: python scripts/create_row_prs.py

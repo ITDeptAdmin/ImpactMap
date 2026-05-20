@@ -21,3 +21,11 @@ Updated the commit step to include build stats JSON file.",Modify commit step to
 2026-05-18T18:01:13+00:00,main,Unknown / not provided,ITDeptAdmin,a896f0eb2b141746678bc591d6c9a348573b3a68,Merge branch 'main' of https://github.com/ITDeptAdmin/ImpactMap,Merge branch 'main' of https://github.com/ITDeptAdmin/ImpactMap,1817,3,3,0,0,3
 2026-05-18T18:03:00+00:00,main,Unknown / not provided,ITDeptAdmin,c0481e34856880b1261a36240a8ee42affd658ad,Manual workflow run,Manual workflow run,1817,3,0,0,0,3
 2026-05-18T18:12:12+00:00,main,print statement from 'Hello' to 'Goodbye',ITDeptAdmin,0affc886e5ee2417f2704d5300b0bd97bef01d31,Update print statement from 'Hello' to 'Goodbye',,1820,0,0,0,0,0
+2026-05-19T10:17:47+00:00,staging,Unknown / not provided,ITDeptAdmin,37ba72e0514ace77bc5d39e1dd5fbb4781039e5f,"Merge pull request #2 from ITDeptAdmin/main
+
+getting staging with main",Merge pull request #2 from ITDeptAdmin/main,1820,0,0,0,0,0
+2026-05-19T10:20:23+00:00,staging,Unknown / not provided,ITDeptAdmin,66889b0934091567c2f60eca3a682958706f6dd0,Merge branch 'staging' of https://github.com/ITDeptAdmin/ImpactMap into staging,Merge branch 'staging' of https://github.com/ITDeptAdmin/ImpactMap into staging,1820,0,0,0,0,0
+2026-05-19T14:52:01+00:00,staging,Unknown / not provided,ITDeptAdmin,2f031530eb05fbe53f36a39a2cc49cd24b9647fc,v2 of dashboard,v2 of dashboard,1820,0,0,0,0,0
+2026-05-19T17:51:30+00:00,staging,Unknown / not provided,ITDeptAdmin,b64fea08cfeacb3aa8e57158e99791b008c50ce8,Add files via upload,Add files via upload,1821,0,0,0,0,0
+2026-05-19T17:55:27+00:00,staging,Unknown / not provided,ITDeptAdmin,14e56d069ccecf82866fd6283fc37e6f17a33db0,Add files via upload,Add files via upload,1820,2,0,0,0,2
+2026-05-20T13:54:34+00:00,staging,Unknown / not provided,ITDeptAdmin,4ea5533a68c9bd34fb58d2d6019f96f653136582,updating the staging csv to the same as main,updating the staging csv to the same as main,1820,0,0,0,0,0

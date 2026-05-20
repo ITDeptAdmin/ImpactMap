@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impact Map Update Center — Remote Area Medical</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ HEADER ═══════════════════ -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <span class="header-icon" aria-hidden="true">🗺</span>
+      <div>
+        <h1 class="header-title">Impact Map Update Center</h1>
+        <p class="header-sub">Remote Area Medical · Data Operations</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill" aria-live="polite">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Loading…</span>
+      </div>
+      <button class="btn-icon-hdr" onclick="location.reload()" title="Refresh">↻</button>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════ MAIN ════════════════════ -->
+<main class="main-content">
+
+  <!-- Loading state -->
+  <div id="loading-msg" class="loading-state">
+    <div class="spinner" aria-hidden="true"></div>
+    <span>Loading dashboard data…</span>
+  </div>
+
+  <!-- Dashboard (hidden until data loads) -->
+  <div id="dashboard" style="display:none">
+
+    <!-- ── HOW TO UPDATE THE MAP ───────────────────────────────────────── -->
+    <section class="section instructions-section" aria-label="How to update the map">
+      <div class="section-hdr">
+        <h2 class="section-title">
+          <span aria-hidden="true">📋</span> How to Update the Map
+        </h2>
+      </div>
+
+      <div class="panel instructions-panel">
+        <div class="quick-steps">
+          <div class="step">
+            <span class="step-num">1</span>
+            <span><strong>Download</strong> the current Master CSV using the button below.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">2</span>
+            <span><strong>Edit</strong> the CSV in Excel — add clinics, update addresses, or fix errors.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">3</span>
+            <span><strong>Upload</strong> the updated CSV to GitHub. GitHub automatically rebuilds the map.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">4</span>
+            <span><strong>Check the Review Queue</strong> below. If rows appear there, a location needs human review.</span>
+          </div>
+          <div class="step">
+            <span class="step-num">5</span>
+            <span>Use <strong>Search for Approval PR</strong> on the review card to find the row's Pull Request. Merge it if the location is correct, or close it if it's wrong. If no PR appears yet, run <strong>Create Geocode Review PRs</strong> from GitHub Actions.</span>
+          </div>
+        </div>
+
+        <!-- Collapsible full instructions -->
+        <details class="help-details">
+          <summary class="help-summary">Full Instructions &amp; Help ▸</summary>
+          <div class="help-content">
+
+            <div class="help-block">
+              <h3 class="help-heading">What this dashboard is</h3>
+              <p>This page is <strong>read-only</strong>. It shows the current state of the Impact Map data. No changes can be made from this page — all changes go through GitHub Pull Requests, which require repository write access.</p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">Uploading the CSV</h3>
+              <p>Use the <strong>Upload Updated CSV</strong> button below. It opens GitHub's file upload page directly. You will need to be logged in with a GitHub account that has write access to this repository.</p>
+              <p style="margin-top:6px">After uploading, GitHub Actions will run automatically and rebuild the map within a few minutes. Refresh this dashboard once the build finishes.</p>
+              <p style="margin-top:6px"><strong>Do not rename the CSV file.</strong> The file must stay named <code>Master_Clinic_ImpactMap.csv</code>.</p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">Green / All Clear status</h3>
+              <p>If the status indicator is green and the Review Queue shows zero items, no action is needed. All clinic locations are already on the map.</p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">Review Queue — what it means</h3>
+              <p>When a row appears in the Review Queue, it means the system could not automatically fill in coordinates with enough confidence. A human needs to verify the suggestion.</p>
+              <ul class="help-list">
+                <li><strong>Has Suggestion:</strong> The system found a likely location. Open the PR for that row, verify the Google Maps link, then merge or close the PR.</li>
+                <li><strong>No Suggestion:</strong> The system could not find a location at all. Fix the CSV by adding a better street address or by entering the Latitude and Longitude directly in the CSV.</li>
+              </ul>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">Approving a suggestion (merging a PR)</h3>
+              <ol class="help-list">
+                <li>Click <strong>Search for Approval PR</strong> on the review card. This searches GitHub for the open PR for that row.</li>
+                <li>Check the Google Maps link in the PR to confirm the location looks correct.</li>
+                <li>If it looks right, click <strong>Merge pull request</strong> on GitHub.</li>
+                <li>The map rebuilds automatically after the merge.</li>
+              </ol>
+              <p style="margin-top:8px;font-size:0.81rem;color:var(--text-muted)">
+                If no PR appears in the search results, go to
+                <strong>GitHub Actions → Create Geocode Review PRs → Run workflow</strong>
+                to create it manually. PRs are normally created automatically after each build.
+              </p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">Rejecting a suggestion (closing a PR)</h3>
+              <p>If the suggested location looks wrong, <strong>close the PR without merging</strong>. Then fix the CSV by adding a correct address or typing in the Latitude and Longitude directly, and re-upload the CSV.</p>
+            </div>
+
+            <div class="help-block warn-block">
+              <h3 class="help-heading">What not to do</h3>
+              <ul class="help-list">
+                <li>Do not rename the CSV file.</li>
+                <li>Do not delete the Latitude or Longitude columns.</li>
+                <li>Do not change column headers unless a developer also updates the build script.</li>
+                <li>Do not merge a PR unless the suggested location on Google Maps looks correct.</li>
+                <li>Do not enter coordinates in any format other than decimal degrees (e.g. 36.1627, −86.7816).</li>
+              </ul>
+            </div>
+
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ── MAIN STATUS ─────────────────────────────────────────────────── -->
+    <section class="section" aria-label="Map status">
+      <div class="section-hdr">
+        <h2 class="section-title">
+          <span aria-hidden="true">📊</span> Map Status
+        </h2>
+        <span class="section-meta" id="build-meta"></span>
+      </div>
+      <div id="main-stats-grid" class="stats-grid stats-grid-main"></div>
+    </section>
+
+    <!-- ── PRIMARY ACTIONS ────────────────────────────────────────────── -->
+    <section class="section" aria-label="Main actions">
+      <div class="section-hdr">
+        <h2 class="section-title">
+          <span aria-hidden="true">⚡</span> Actions
+        </h2>
+      </div>
+      <div id="primary-actions" class="primary-actions"></div>
+    </section>
+
+    <!-- ── ADVANCED / TROUBLESHOOTING ─────────────────────────────────── -->
+    <details class="advanced-details section">
+      <summary class="advanced-summary">
+        <span class="section-title" style="display:inline-flex">
+          <span aria-hidden="true">🔧</span> Advanced / Troubleshooting
+        </span>
+        <span class="advanced-hint">Build stats, technical downloads, GitHub Actions</span>
+      </summary>
+      <div class="advanced-content">
+        <div class="advanced-grid">
+          <div>
+            <div class="adv-label">Build Stats</div>
+            <div id="advanced-stats-grid" class="stats-grid stats-grid-adv"></div>
+          </div>
+          <div>
+            <div class="adv-label">Technical Downloads &amp; Links</div>
+            <div id="advanced-actions" class="action-list"></div>
+          </div>
+        </div>
+        <p class="readonly-note">
+          This dashboard is <strong>read-only</strong>. No data is sent from this page.
+          Approvals happen through GitHub Pull Requests so only users with repository
+          write access can change the map data.
+        </p>
+      </div>
+    </details>
+
+    <!-- ── REVIEW QUEUE ───────────────────────────────────────────────── -->
+    <section class="section" aria-label="Geocode review queue">
+      <div class="section-hdr">
+        <h2 class="section-title">
+          <span aria-hidden="true">🔍</span>
+          Review Queue
+          <span id="queue-badge" class="queue-badge zero">0</span>
+        </h2>
+        <div class="queue-hdr-right">
+          <a id="review-prs-btn" class="btn btn-review-prs" style="display:none"
+             target="_blank" rel="noopener noreferrer"
+             aria-label="Search for review pull requests on GitHub">
+            🔍 Review Pending Suggestions
+          </a>
+          <button id="copy-all-btn" class="btn btn-copy" style="display:none"
+                  aria-label="Copy all row numbers with suggested coordinates">
+            📋 Copy row numbers
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-bar" role="search">
+        <div class="filter-pills" role="group" aria-label="Filter rows">
+          <button class="pill active" data-filter="all">All</button>
+          <button class="pill" data-filter="with-suggestion">Has Suggestion</button>
+          <button class="pill" data-filter="no-suggestion">No Suggestion</button>
+        </div>
+        <input id="search-input" type="search" class="search-input"
+               placeholder="Search city, address, event…"
+               aria-label="Search review rows"
+               autocomplete="off">
+      </div>
+
+      <p id="queue-pr-note" class="queue-pr-note" style="display:none">
+        Each row with a suggestion gets its own Pull Request. Use <strong>Search for Approval PR</strong>
+        on each card to find it. If no PR appears yet, go to
+        <a href="#" id="actions-link-inline" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
+        → <strong>Create Geocode Review PRs</strong> → <strong>Run workflow</strong>.
+      </p>
+
+      <p id="filter-count" class="filter-count" style="display:none" aria-live="polite"></p>
+      <div id="review-list" aria-live="polite"></div>
+
+    </section>
+
+  </div><!-- /dashboard -->
+
+</main>
+
+<!-- ═══════════════════════════════════════════ FOOTER ══════════════════ -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span id="footer-build"></span>
+    <span class="footer-sep">·</span>
+    <a href="../../output/geocode_review.csv" title="Download geocode review CSV">geocode_review.csv</a>
+    <span class="footer-sep">·</span>
+    <a href="../../output/build_stats.json" title="Download build stats JSON">build_stats.json</a>
+    <span class="footer-sep">·</span>
+    <span>Read-only · No data is sent from this page</span>
+  </div>
+</footer>
+
+<!--
+  ════════════════════════════════════════════════════
+  GITHUB PAGES SETUP
+  ════════════════════════════════════════════════════
+  Configure Pages to serve from the REPOSITORY ROOT (not docs/ folder):
+    GitHub repo → Settings → Pages → Source → Deploy from branch
+    Branch: main (or staging)   Folder: / (root)
+
+  Dashboard URL:
+    https://<owner>.github.io/<repo>/docs/geocode-review/
+
+  Data files accessed via relative paths from this page:
+    ../../output/geocode_review.csv
+    ../../output/build_stats.json
+    ../../data/Master_Clinic_ImpactMap.csv
+    ../../output/ImpactMap_Dataset.geojson
+
+  If using docs/ as Pages source, change DATA_BASE in app.js to:
+    const DATA_BASE = "https://raw.githubusercontent.com/ITDeptAdmin/ImpactMap/main";
+  ════════════════════════════════════════════════════
+-->
+
+<script src="app.js"></script>
+</body>
+</html>
