@@ -63,15 +63,15 @@
           </div>
           <div class="step">
             <span class="step-num">3</span>
-            <span><strong>Upload</strong> the updated CSV to GitHub. GitHub automatically rebuilds the map.</span>
+            <span><strong>Upload</strong> the updated CSV. GitHub will rebuild the map automatically.</span>
           </div>
           <div class="step">
             <span class="step-num">4</span>
-            <span><strong>Check the Review Queue</strong> below. If rows appear there, a location needs human review.</span>
+            <span><strong>Check the Review Queue.</strong> If it shows zero, you are done.</span>
           </div>
           <div class="step">
             <span class="step-num">5</span>
-            <span>For each row in the Review Queue, click <strong>1. Check Map Location</strong> to verify the pin, then click <strong>2. Review Suggested Fix</strong>. Approve it if the location is correct, or reject it and fix the CSV if it is wrong.</span>
+            <span>If rows appear in the Review Queue, check the map location and review the Suggested Fix. <strong>Approve</strong> it if the location is correct. <strong>Reject</strong> it and fix the CSV if the location is wrong.</span>
           </div>
         </div>
 
@@ -82,74 +82,105 @@
 
             <div class="help-block">
               <h3 class="help-heading">What this dashboard is</h3>
-              <p>This page is <strong>read-only</strong>. It shows the current state of the Impact Map data. No changes can be made from this page — all map updates are applied through GitHub, which requires repository write access.</p>
+              <p>This page is a read-only update center for the Impact Map. It shows the current map data status, the last build time, and any rows that need review.</p>
+              <p style="margin-top:6px">You cannot directly edit map data from this dashboard. Data changes happen through GitHub so only users with repository write access can update the map.</p>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">Uploading the CSV</h3>
-              <p>Use the <strong>Upload Updated CSV</strong> button below. It opens GitHub's file upload page directly. You will need to be logged in with a GitHub account that has write access to this repository.</p>
-              <p style="margin-top:6px">After uploading, GitHub Actions will run automatically and rebuild the map within a few minutes. Refresh this dashboard once the build finishes.</p>
-              <p style="margin-top:6px"><strong>Do not rename the CSV file.</strong> The file must stay named <code>Master_Clinic_ImpactMap.csv</code>.</p>
+              <p>Use the <strong>Upload Updated CSV</strong> button below. It opens GitHub's file upload page.</p>
+              <p style="margin-top:6px">You must be logged in with a GitHub account that has access to this repository.</p>
+              <p style="margin-top:6px">After you upload the CSV, GitHub automatically rebuilds the map. This usually takes a few minutes. When the build finishes, refresh this dashboard.</p>
+              <p style="margin-top:6px"><strong>Important:</strong> Do not rename the CSV file. It must stay named <code>Master_Clinic_ImpactMap.csv</code>.</p>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">Green / All Clear status</h3>
-              <p>If the status indicator is green and the Review Queue shows zero items, no action is needed. All clinic locations are already on the map.</p>
+              <p>If the status is green and the Review Queue shows zero rows, no action is needed. The map data is ready.</p>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">Review Queue — what it means</h3>
-              <p>When a row appears in the Review Queue, it means the system could not automatically fill in coordinates with enough confidence. A human needs to verify the suggestion.</p>
-              <ul class="help-list">
-                <li><strong>Has Suggestion:</strong> The system found a likely location. Check the map pin, then approve or reject the Suggested Fix.</li>
-                <li><strong>No Suggestion:</strong> The system could not find a location at all. Fix the CSV by adding a better street address or by entering the Latitude and Longitude directly.</li>
-              </ul>
+              <p>Rows appear in the Review Queue when the system could not safely place them on the map without a human check.</p>
+              <p style="margin-top:6px">A review row may have a <strong>Suggested Fix</strong>. That means the system found a possible location, but it needs someone to verify it.</p>
+              <p style="margin-top:6px">If there is no suggestion, manually fix the CSV by improving the address or entering Latitude and Longitude directly.</p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">How to review a Suggested Fix</h3>
+              <ol class="help-list">
+                <li>Click <strong>1. Check Map Location</strong>. Google Maps will open.</li>
+                <li>Make sure the pin is in the correct place.</li>
+                <li>Click <strong>2. Review Suggested Fix</strong>. GitHub will open.</li>
+                <li>If the location is correct, approve the Suggested Fix.</li>
+                <li>If the location is wrong, reject the Suggested Fix and manually fix the CSV.</li>
+              </ol>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">Approving a Suggested Fix</h3>
-              <ol class="help-list">
-                <li>Click <strong>1. Check Map Location</strong> on the review card. Google Maps will open.</li>
-                <li>Confirm the map pin is in the right place.</li>
+              <p>Approve a Suggested Fix only if the map pin looks correct.</p>
+              <ol class="help-list" style="margin-top:8px">
                 <li>Click <strong>2. Review Suggested Fix</strong>. GitHub will open.</li>
-                <li>If the location looks correct, click the green <strong>Merge pull request</strong> button.</li>
+                <li>Click the green <strong>Merge pull request</strong> button.</li>
                 <li>Click <strong>Confirm merge</strong>.</li>
-                <li>If GitHub shows a <strong>Delete branch</strong> button, click it to clean up the temporary branch. If the repository has auto-delete enabled, this happens automatically.</li>
                 <li>Wait a few minutes for the map to rebuild.</li>
                 <li>Refresh this dashboard. The row should disappear from the Review Queue.</li>
               </ol>
               <p style="margin-top:8px;font-size:0.81rem;color:var(--text-muted)">
-                Deleting the temporary Suggested Fix branch only cleans up GitHub housekeeping.
-                It does not delete the map data, the CSV, <code>main</code>, or <code>staging</code>.
-              </p>
-              <p style="margin-top:6px;font-size:0.81rem;color:var(--text-muted)">
-                If no Suggested Fix appears, go to
-                <strong>GitHub Actions → Create Review Fixes → Run workflow</strong>
-                to create it manually. Suggested Fixes are normally created automatically after each build.
+                <strong>Branch cleanup:</strong> Approved Suggested Fix branches usually disappear automatically if the repository setting
+                <em>Automatically delete head branches</em> is turned on. If GitHub still shows a
+                <strong>Delete branch</strong> button after approval, you can click it to clean up the temporary branch.
               </p>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">Rejecting a Suggested Fix</h3>
-              <ol class="help-list">
+              <p>Reject a Suggested Fix if the map pin is wrong or you are not sure it is correct.</p>
+              <ol class="help-list" style="margin-top:8px">
                 <li>Click <strong>2. Review Suggested Fix</strong>. GitHub will open.</li>
-                <li>Scroll to the bottom of the page.</li>
                 <li>Click <strong>Close pull request</strong>. Do <em>not</em> merge it.</li>
-                <li>If GitHub shows a <strong>Delete branch</strong> button, click it to clean up the temporary branch.</li>
-                <li>The row will stay in the Review Queue.</li>
-                <li>Fix the CSV by correcting the address or entering the Latitude and Longitude directly.</li>
-                <li>Upload the updated CSV. The map will rebuild with the corrected row.</li>
+                <li>If GitHub shows a <strong>Delete branch</strong> button after closing, click it to clean up the temporary branch.</li>
+                <li>Go back to the CSV and fix the row manually.</li>
+                <li>Upload the corrected CSV again.</li>
               </ol>
+              <p style="margin-top:8px;font-size:0.81rem;color:var(--text-muted)">
+                The row will stay in the Review Queue until the CSV is corrected or the row is removed.
+              </p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">What does Delete branch mean?</h3>
+              <p>Some Suggested Fixes create temporary GitHub branches with names like <code>geocode-suggestion/row-1821</code>.</p>
+              <p style="margin-top:6px">Deleting one of these temporary Suggested Fix branches only cleans up GitHub. It does not delete the map data, the CSV, the <code>main</code> branch, or the <code>staging</code> branch.</p>
+              <p style="margin-top:6px"><strong>Never delete <code>main</code> or <code>staging</code>.</strong></p>
+              <p style="margin-top:6px;font-size:0.81rem;color:var(--text-muted)">Most staff will not need to find branches manually. If needed, branches can be viewed in GitHub under <strong>Code → Branches</strong>.</p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">If no Suggested Fix appears</h3>
+              <p>Suggested Fixes are normally created automatically after the map rebuilds.</p>
+              <p style="margin-top:6px">If a row has suggested coordinates but no Suggested Fix appears yet, go to:</p>
+              <p style="margin-top:6px"><strong>GitHub Actions → Create Review Fixes → Run workflow</strong></p>
+              <p style="margin-top:6px">Then refresh the dashboard and try again.</p>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">What happens when I approve?</h3>
-              <p>The suggested coordinates are saved to the CSV and the map is rebuilt automatically. The row disappears from the Review Queue on the next build.</p>
+              <p>The suggested Latitude and Longitude are saved to the CSV. The map rebuilds automatically. The row disappears from the Review Queue after the next successful build.</p>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">What happens when I reject?</h3>
-              <p>Nothing changes on the map. The Suggested Fix is closed and the row stays in the Review Queue until the CSV is manually corrected or removed.</p>
+              <p>Nothing changes on the map. The Suggested Fix is closed. The row stays in the Review Queue until someone manually corrects the CSV or removes the row.</p>
+            </div>
+
+            <div class="help-block">
+              <h3 class="help-heading">Manually fixing a row in the CSV</h3>
+              <p>Use <strong>View CSV Row</strong> to see the exact row.</p>
+              <p style="margin-top:6px">Use <strong>Copy Search Text</strong> to copy a raw CSV value like <code>1820,1819</code>.</p>
+              <p style="margin-top:6px">Then click <strong>Edit CSV File</strong>, press <strong>Ctrl+F</strong>, paste the search text, and find the row quickly.</p>
+              <p style="margin-top:6px">Fix the address or enter Latitude and Longitude directly. Then upload the CSV again.</p>
             </div>
 
             <div class="help-block warn-block">
@@ -159,7 +190,8 @@
                 <li>Do not delete the Latitude or Longitude columns.</li>
                 <li>Do not change column headers unless a developer also updates the build script.</li>
                 <li>Do not approve a Suggested Fix unless the location on Google Maps looks correct.</li>
-                <li>Do not enter coordinates in any format other than decimal degrees (e.g. 36.1627, −86.7816).</li>
+                <li>Do not enter coordinates in any format other than decimal degrees, such as 36.1627, −86.7816.</li>
+                <li>Do not delete <code>main</code> or <code>staging</code> branches.</li>
               </ul>
             </div>
 
