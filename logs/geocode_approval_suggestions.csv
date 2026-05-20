@@ -1,0 +1,3 @@
+timestamp_utc,branch,csv_row,event,expedition,city,state,country,address,suggested_latitude,suggested_longitude,suggested_confidence,suggested_address,suggested_source,applied_by
+2026-05-20T15:27:45+00:00,staging,1822,1821,1820,Jefaaferson City,Tennaaessee,United States,"522222211 west Drive 
+Jefferson City TN, 37760",36.143173,-83.471763,unknown,"East Drive, Jefferson City, Tennessee 37760, United States",Mapbox (not auto-approved — US validation),geocode-review-pr-workflow
