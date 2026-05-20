@@ -109,25 +109,30 @@
             <div class="help-block">
               <h3 class="help-heading">Approving a Suggested Fix</h3>
               <ol class="help-list">
-                <li>Click <strong>1. Check Map Location</strong> on the review card to open Google Maps and verify the pin.</li>
-                <li>Click <strong>2. Review Suggested Fix</strong> to open the Suggested Fix on GitHub.</li>
-                <li>If the location looks correct, click the green <strong>Merge pull request</strong> button, then <strong>Confirm merge</strong>.</li>
-                <li>The map rebuilds automatically after approval.</li>
+                <li>Click <strong>1. Check Map Location</strong> on the review card. Google Maps will open.</li>
+                <li>Confirm the map pin is in the right place.</li>
+                <li>Click <strong>2. Review Suggested Fix</strong>. GitHub will open.</li>
+                <li>If the location looks correct, click the green <strong>Merge pull request</strong> button.</li>
+                <li>Click <strong>Confirm merge</strong>.</li>
+                <li>Wait a few minutes for the map to rebuild.</li>
+                <li>Refresh this dashboard. The row should disappear from the Review Queue.</li>
               </ol>
               <p style="margin-top:8px;font-size:0.81rem;color:var(--text-muted)">
-                If no Suggested Fix appears in the search results, go to
-                <strong>GitHub Actions → Create Geocode Review PRs → Run workflow</strong>
+                If no Suggested Fix appears, go to
+                <strong>GitHub Actions → Create Review Fixes → Run workflow</strong>
                 to create it manually. Suggested Fixes are normally created automatically after each build.
               </p>
             </div>
 
             <div class="help-block">
               <h3 class="help-heading">Rejecting a Suggested Fix</h3>
-              <p>If the suggested location looks wrong:</p>
               <ol class="help-list">
-                <li>Click <strong>2. Review Suggested Fix</strong> to open it on GitHub.</li>
-                <li>Scroll to the bottom and click <strong>Close pull request</strong> (do <em>not</em> merge).</li>
-                <li>Fix the CSV by adding a correct address or entering the Latitude and Longitude directly, then re-upload the CSV.</li>
+                <li>Click <strong>2. Review Suggested Fix</strong>. GitHub will open.</li>
+                <li>Scroll to the bottom of the page.</li>
+                <li>Click <strong>Close pull request</strong>. Do <em>not</em> merge it.</li>
+                <li>The row will stay in the Review Queue.</li>
+                <li>Fix the CSV by correcting the address or entering the Latitude and Longitude directly.</li>
+                <li>Upload the updated CSV. The map will rebuild with the corrected row.</li>
               </ol>
             </div>
 
@@ -138,7 +143,7 @@
 
             <div class="help-block">
               <h3 class="help-heading">What happens when I reject?</h3>
-              <p>Nothing changes on the map. The Suggested Fix is closed and the row stays in the Review Queue until you upload a corrected CSV with a better address or the correct coordinates.</p>
+              <p>Nothing changes on the map. The Suggested Fix is closed and the row stays in the Review Queue until the CSV is manually corrected or removed.</p>
             </div>
 
             <div class="help-block warn-block">
@@ -184,7 +189,7 @@
         <span class="section-title" style="display:inline-flex">
           <span aria-hidden="true">🔧</span> Advanced / Troubleshooting
         </span>
-        <span class="advanced-hint">Build stats, technical downloads, GitHub Actions</span>
+        <span class="advanced-hint">Build stats, technical downloads, map update logs</span>
       </summary>
       <div class="advanced-content">
         <div class="advanced-grid">
@@ -199,7 +204,7 @@
         </div>
         <p class="readonly-note">
           This dashboard is <strong>read-only</strong>. No data is sent from this page.
-          Approvals happen through GitHub Pull Requests so only users with repository
+          Updates and approvals happen through GitHub so only users with repository
           write access can change the map data.
         </p>
       </div>
@@ -216,13 +221,9 @@
         <div class="queue-hdr-right">
           <a id="review-prs-btn" class="btn btn-review-prs" style="display:none"
              target="_blank" rel="noopener noreferrer"
-             aria-label="Search for review pull requests on GitHub">
-            🔍 Review Pending Suggestions
+             aria-label="Open Suggested Fixes on GitHub">
+            🔍 Review Suggested Fixes
           </a>
-          <button id="copy-all-btn" class="btn btn-copy" style="display:none"
-                  aria-label="Copy all row numbers with suggested coordinates">
-            📋 Copy row numbers
-          </button>
         </div>
       </div>
 
@@ -246,7 +247,7 @@
         <strong>2. Review Suggested Fix</strong> on each card to open it. If no Suggested Fix
         appears yet, go to
         <a href="#" id="actions-link-inline" target="_blank" rel="noopener noreferrer">GitHub Actions</a>
-        → <strong>Create Geocode Review PRs</strong> → <strong>Run workflow</strong>.
+        → <strong>Create Review Fixes</strong> → <strong>Run workflow</strong>.
       </p>
 
       <p id="filter-count" class="filter-count" style="display:none" aria-live="polite"></p>
@@ -263,11 +264,7 @@
   <div class="footer-inner">
     <span id="footer-build"></span>
     <span class="footer-sep">·</span>
-    <a href="../../output/geocode_review.csv" title="Download geocode review CSV">geocode_review.csv</a>
-    <span class="footer-sep">·</span>
-    <a href="../../output/build_stats.json" title="Download build stats JSON">build_stats.json</a>
-    <span class="footer-sep">·</span>
-    <span>Read-only · No data is sent from this page</span>
+    <span>Read-only dashboard</span>
   </div>
 </footer>
 

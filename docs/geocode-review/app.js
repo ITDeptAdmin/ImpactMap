@@ -159,6 +159,10 @@ async function copyText(text, btn) {
   }
 }
 
+function copySearchText(btn) {
+  copyText(btn.dataset.searchText, btn);
+}
+
 // ── STATUS INDICATOR ──────────────────────────────────────────────────────
 function setStatus(cls, label) {
   const dot  = document.getElementById("status-dot");
@@ -323,7 +327,7 @@ function renderPrimaryActions(rows) {
          target="_blank" rel="noopener noreferrer">
         <span class="primary-btn-icon">🔀</span>
         <div>
-          <div class="primary-btn-label">Review Pending Suggestions (${esc(count)})</div>
+          <div class="primary-btn-label">Review Suggested Fixes (${esc(count)})</div>
           <div class="primary-btn-sub">Open Suggested Fixes on GitHub</div>
         </div>
       </a>`;
@@ -340,8 +344,8 @@ function renderAdvancedActions() {
     { href: `${DATA_BASE}/output/geocode_review.csv`,     icon: "⬇", label: "Download Geocode Review CSV", dl: "geocode_review.csv" },
     { href: `${DATA_BASE}/output/build_stats.json`,       icon: "⬇", label: "Download Build Stats JSON",   dl: "build_stats.json" },
     { href: GITHUB_CSV_URL,    icon: "📄", label: "View CSV on GitHub",     target: true },
-    { href: GITHUB_PRS_URL,    icon: "🔀", label: "All Pull Requests",      target: true },
-    { href: GITHUB_ACTIONS_URL,icon: "⚙", label: "GitHub Actions (builds)", target: true },
+    { href: GITHUB_PRS_URL,    icon: "🔀", label: "All Suggested Fixes",   target: true },
+    { href: GITHUB_ACTIONS_URL,icon: "⚙", label: "Map Update Logs",        target: true },
   ];
   return items.map(a => {
     const dl     = a.dl     ? `download="${esc(a.dl)}"` : "";
@@ -428,7 +432,7 @@ function renderCard(r) {
         </div>`;
       helperHtml = `
         <div class="sug-note sug-note-rejected">
-          🔴 This suggestion was rejected. Fix the CSV by correcting the address or entering Latitude/Longitude directly, then upload the CSV again.
+          🔴 This Suggested Fix was rejected. Next step: fix this row in the CSV, then upload the CSV again.
         </div>`;
     } else if (status === "pending") {
       actionBtnsHtml = `
@@ -467,7 +471,7 @@ function renderCard(r) {
         helperHtml = `
           <div class="sug-note sug-note-ready">
             🔵 If the map location looks correct, open the Suggested Fix and approve it.
-            If it looks wrong, reject it and fix the CSV.
+            If it looks wrong, reject it and manually fix the CSV.
             <span class="gh-hint">(On GitHub: green <strong>Merge pull request</strong> to approve,
             or <strong>Close pull request</strong> to reject)</span>
           </div>`;
@@ -508,6 +512,12 @@ function renderCard(r) {
       </div>`;
   }
 
+  // Build a Ctrl+F search string for the GitHub CSV editor
+  const searchText = [
+    r.event ? `Event ${r.event}` : "",
+    r.city || (r.address ? r.address.split(",")[0].trim() : ""),
+  ].filter(Boolean).join(" ").trim();
+
   // CSV action buttons — always shown on every card
   const csvActions = `
     <div class="csv-actions-block">
@@ -517,13 +527,20 @@ function renderCard(r) {
            class="btn btn-csv" title="View CSV file on GitHub near line ${csvLineNum}">
           📄 View CSV Row
         </a>
+        <button class="btn btn-csv"
+                data-search-text="${esc(searchText)}"
+                onclick="copySearchText(this)"
+                title="Copy search text to use with Ctrl+F in the CSV editor">
+          🔍 Copy Search Text
+        </button>
         <a href="${esc(csvEditUrl())}" target="_blank" rel="noopener noreferrer"
            class="btn btn-csv" title="Open the CSV file in the GitHub editor">
           ✏️ Edit CSV File
         </a>
       </div>
-      <p class="csv-help-note">Use <strong>View CSV Row</strong> to find the row in the file.
-        Use <strong>Edit CSV File</strong> to manually fix the address or Latitude/Longitude.</p>
+      <p class="csv-help-note">Use <strong>View CSV Row</strong> to see the exact row.
+        Use <strong>Copy Search Text</strong>, then <strong>Edit CSV File</strong> and press
+        <strong>Ctrl+F</strong> to find it quickly.</p>
     </div>`;
 
   const cardClass = sug ? `status-${status}` : "status-no-suggestion";
@@ -560,7 +577,6 @@ function renderCard(r) {
 function applyFiltersAndSearch() {
   const listEl      = document.getElementById("review-list");
   const countEl     = document.getElementById("filter-count");
-  const copyAllEl   = document.getElementById("copy-all-btn");
   const prsBtnEl    = document.getElementById("review-prs-btn");
   const queueNoteEl = document.getElementById("queue-pr-note");
 
@@ -596,8 +612,7 @@ function applyFiltersAndSearch() {
           The build workflow updates this page automatically after each
           upload — check back after the next CSV update.</p>
       </div>`;
-    countEl.style.display   = "none";
-    copyAllEl.style.display = "none";
+    countEl.style.display = "none";
     if (prsBtnEl)    prsBtnEl.style.display    = "none";
     if (queueNoteEl) queueNoteEl.style.display = "none";
     return;
@@ -613,8 +628,7 @@ function applyFiltersAndSearch() {
         <div class="empty-title" style="color:var(--text-muted)">No rows match your filter</div>
         <p class="empty-sub">Try a different filter or clear the search box.</p>
       </div>`;
-    countEl.style.display   = "none";
-    copyAllEl.style.display = "none";
+    countEl.style.display = "none";
     return;
   }
 
@@ -625,16 +639,6 @@ function applyFiltersAndSearch() {
     countEl.style.display = "block";
   } else {
     countEl.style.display = "none";
-  }
-
-  const sugVisible = visible.filter(hasSuggestion);
-  if (sugVisible.length > 0) {
-    const nums = sugVisible.map(r => r.row).filter(Boolean).join(", ");
-    copyAllEl.style.display = "inline-flex";
-    copyAllEl.onclick = e => copyText(nums, e.currentTarget);
-    copyAllEl.textContent = `📋 Copy row numbers (${sugVisible.length})`;
-  } else {
-    copyAllEl.style.display = "none";
   }
 }
 
