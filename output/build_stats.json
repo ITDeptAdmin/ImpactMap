@@ -1,7 +1,10 @@
 {
   "coordinate_rows_updated": 0,
   "matched_existing": 0,
-  "mapbox_geocoded": 0,
+  "mapbox_auto_approved": 0,
+  "mapbox_sent_to_review": 0,
+  "mapbox_broad_result_reviewed": 0,
+  "mapbox_street_number_mismatch_reviewed": 0,
   "philippines_place_geocoded": 0,
   "philippines_country_fallback": 0,
   "review_rows": 0,
