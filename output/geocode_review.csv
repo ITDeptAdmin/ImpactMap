@@ -1,3 +1,1 @@
 row,event,expedition,year,address,city,state,non_us_state,county_parish,country,zipcode,reason,suggested_latitude,suggested_longitude,suggested_confidence,suggested_address,suggested_source
-1821,1820,1819,2026,"533333311 north Drive 
-Jefferson City TN, 37760",Jefaaferson City,Tennesaasee,,Jefdferson,United States,37760,Mapbox returned a unknown-confidence result — review before accepting.,36.143173,-83.471763,unknown,"East Drive, Jefferson City, Tennessee 37760, United States",Mapbox (not auto-approved — US validation)
