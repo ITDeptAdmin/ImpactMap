@@ -109,6 +109,8 @@ When a row cannot be automatically geocoded with confidence, the system creates 
 Approved Suggested Fixes update one CSV row and rebuild the map automatically.
 Rejected Suggested Fixes leave the row in the Review Queue until the CSV is manually corrected.
 
+Suggested Fix branches (`geocode-suggestion/row-{N}`) are temporary. After approving or rejecting, click **Delete branch** on GitHub to clean up. To do this automatically, enable **Settings → General → Pull Requests → Automatically delete head branches**. Deleting these branches does not affect map data, the CSV, `main`, or `staging`.
+
 The dashboard is hosted on GitHub Pages and is **read-only** — no data is sent from it. All changes go through GitHub.
 
 ---

@@ -124,6 +124,8 @@ Creates one Pull Request per review row that has suggested coordinates.
 - Opens PR with title: `Approve geocode suggestion — Row {N} — Event {E}`
 - Writes a GitHub step summary
 
+`geocode-suggestion/row-{N}` branches are temporary. They should be deleted after the PR is merged or closed. GitHub can delete them automatically: **Settings → General → Pull Requests → Automatically delete head branches**. Deleting these branches does not affect `main`, `staging`, the CSV, or map data.
+
 ---
 
 # GitHub Actions Workflows

@@ -156,15 +156,17 @@ The system found a likely location. The row badge will say **Ready to Review**.
 3. Click **2. Review Suggested Fix**. GitHub will open.
 4. If the location looks correct, click the green **Merge pull request** button.
 5. Click **Confirm merge**.
-6. Wait a few minutes, then refresh the Update Center. The row should disappear from the Review Queue.
+6. If GitHub shows a **Delete branch** button, click it to clean up the temporary branch. This is safe — it only removes the temporary Suggested Fix branch, not the map data or the `main`/`staging` branch.
+7. Wait a few minutes, then refresh the Update Center. The row should disappear from the Review Queue.
 
 **If the location looks wrong:**
 
 1. Click **2. Review Suggested Fix**. GitHub will open.
 2. Scroll down and click **Close pull request**. Do not merge it.
-3. The row stays in the Review Queue with a **Rejected** badge.
-4. Fix the CSV by correcting the address or entering the correct Latitude and Longitude directly.
-5. Upload the updated CSV. The system will retry.
+3. If GitHub shows a **Delete branch** button, click it to clean up the temporary branch.
+4. The row stays in the Review Queue with a **Rejected** badge.
+5. Fix the CSV by correcting the address or entering the correct Latitude and Longitude directly.
+6. Upload the updated CSV. The system will retry.
 
 ## If the row has no suggestion
 
@@ -186,6 +188,15 @@ The suggested coordinates are saved to the CSV and the map rebuilds automaticall
 ## When you reject a Suggested Fix
 
 Nothing changes on the map. The Suggested Fix is closed and the row stays in the Review Queue until the CSV is manually corrected and re-uploaded.
+
+## About Suggested Fix branches
+
+Each Suggested Fix uses a temporary GitHub branch named like `geocode-suggestion/row-1821`. These branches exist only to hold the suggested coordinate change while it waits for review.
+
+After approving or rejecting, you can delete the temporary branch when GitHub shows the **Delete branch** button. Deleting it does not affect the map, the CSV, or the `main` or `staging` branches.
+
+To have GitHub delete these branches automatically after each merge, go to:
+**Repository → Settings → General → Pull Requests → Automatically delete head branches**
 
 ---
 

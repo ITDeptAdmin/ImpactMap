@@ -379,6 +379,23 @@ function csvEditUrl() {
   return `${GITHUB_BASE}/edit/${GITHUB_BRANCH}/data/Master_Clinic_ImpactMap.csv`;
 }
 
+// ── BUILD SEARCH TEXT ─────────────────────────────────────────────────────
+// Returns a raw CSV-fragment that can be found with Ctrl+F in the GitHub CSV
+// editor (which shows the raw file). event,expedition are consecutive columns,
+// so "1820,1819" will match exactly one row.
+function buildSearchText(r) {
+  const ev  = (r.event      || "").trim();
+  const exp = (r.expedition || "").trim();
+  if (ev && exp) return `${ev},${exp}`;
+  if (ev)        return `${ev},`;
+  if (exp)       return `,${exp},`;
+  const addr = (r.address || "").trim();
+  const zip  = (r.zipcode  || "").trim();
+  const city = (r.city     || "").trim();
+  const ctry = (r.country  || "").trim();
+  return addr || zip || city || ctry || String(r.row || "");
+}
+
 // ── REVIEW CARD ───────────────────────────────────────────────────────────
 function renderCard(r) {
   const sug        = hasSuggestion(r);
@@ -512,11 +529,9 @@ function renderCard(r) {
       </div>`;
   }
 
-  // Build a Ctrl+F search string for the GitHub CSV editor
-  const searchText = [
-    r.event ? `Event ${r.event}` : "",
-    r.city || (r.address ? r.address.split(",")[0].trim() : ""),
-  ].filter(Boolean).join(" ").trim();
+  // Build a raw CSV-fragment for Ctrl+F in the GitHub CSV editor.
+  // event,expedition (e.g. "1820,1819") appears as consecutive columns in the raw CSV.
+  const searchText = buildSearchText(r);
 
   // CSV action buttons — always shown on every card
   const csvActions = `
@@ -530,7 +545,7 @@ function renderCard(r) {
         <button class="btn btn-csv"
                 data-search-text="${esc(searchText)}"
                 onclick="copySearchText(this)"
-                title="Copy search text to use with Ctrl+F in the CSV editor">
+                title="Copies raw CSV text like 1820,1819 so you can press Ctrl+F in the CSV editor">
           🔍 Copy Search Text
         </button>
         <a href="${esc(csvEditUrl())}" target="_blank" rel="noopener noreferrer"
@@ -540,7 +555,7 @@ function renderCard(r) {
       </div>
       <p class="csv-help-note">Use <strong>View CSV Row</strong> to see the exact row.
         Use <strong>Copy Search Text</strong>, then <strong>Edit CSV File</strong> and press
-        <strong>Ctrl+F</strong> to find it quickly.</p>
+        <strong>Ctrl+F</strong> — the copied text matches the raw CSV so the row is easy to find.</p>
     </div>`;
 
   const cardClass = sug ? `status-${status}` : "status-no-suggestion";
@@ -586,10 +601,6 @@ function applyFiltersAndSearch() {
     visible = visible.filter(r => rowStatus(r).status === "ready");
   } else if (currentFilter === "rejected") {
     visible = visible.filter(r => rowStatus(r).status === "rejected");
-  } else if (currentFilter === "pending") {
-    visible = visible.filter(r => hasSuggestion(r) && rowStatus(r).status === "pending");
-  } else if (currentFilter === "approved") {
-    visible = visible.filter(r => rowStatus(r).status === "approved");
   } else if (currentFilter === "no-suggestion") {
     visible = visible.filter(r => !hasSuggestion(r));
   }

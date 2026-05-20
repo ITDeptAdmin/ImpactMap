@@ -114,10 +114,15 @@
                 <li>Click <strong>2. Review Suggested Fix</strong>. GitHub will open.</li>
                 <li>If the location looks correct, click the green <strong>Merge pull request</strong> button.</li>
                 <li>Click <strong>Confirm merge</strong>.</li>
+                <li>If GitHub shows a <strong>Delete branch</strong> button, click it to clean up the temporary branch. If the repository has auto-delete enabled, this happens automatically.</li>
                 <li>Wait a few minutes for the map to rebuild.</li>
                 <li>Refresh this dashboard. The row should disappear from the Review Queue.</li>
               </ol>
               <p style="margin-top:8px;font-size:0.81rem;color:var(--text-muted)">
+                Deleting the temporary Suggested Fix branch only cleans up GitHub housekeeping.
+                It does not delete the map data, the CSV, <code>main</code>, or <code>staging</code>.
+              </p>
+              <p style="margin-top:6px;font-size:0.81rem;color:var(--text-muted)">
                 If no Suggested Fix appears, go to
                 <strong>GitHub Actions → Create Review Fixes → Run workflow</strong>
                 to create it manually. Suggested Fixes are normally created automatically after each build.
@@ -130,6 +135,7 @@
                 <li>Click <strong>2. Review Suggested Fix</strong>. GitHub will open.</li>
                 <li>Scroll to the bottom of the page.</li>
                 <li>Click <strong>Close pull request</strong>. Do <em>not</em> merge it.</li>
+                <li>If GitHub shows a <strong>Delete branch</strong> button, click it to clean up the temporary branch.</li>
                 <li>The row will stay in the Review Queue.</li>
                 <li>Fix the CSV by correcting the address or entering the Latitude and Longitude directly.</li>
                 <li>Upload the updated CSV. The map will rebuild with the corrected row.</li>
@@ -231,9 +237,7 @@
         <div class="filter-pills" role="group" aria-label="Filter rows">
           <button class="pill active" data-filter="all">All</button>
           <button class="pill" data-filter="ready">Ready to Review</button>
-          <button class="pill" data-filter="rejected">Rejected / Needs Fix</button>
-          <button class="pill" data-filter="pending">No Suggested Fix Yet</button>
-          <button class="pill" data-filter="approved">Approved</button>
+          <button class="pill" data-filter="rejected">Needs Manual Fix</button>
           <button class="pill" data-filter="no-suggestion">No Suggestion</button>
         </div>
         <input id="search-input" type="search" class="search-input"

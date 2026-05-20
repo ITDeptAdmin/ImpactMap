@@ -128,6 +128,13 @@ The dashboard degrades gracefully — cards still show all suggestion data and a
 
 The map needs to rebuild after a merge. A merge triggers `build-impactmap.yml` automatically. Wait a few minutes, then refresh the Update Center. The row should disappear after the next build.
 
+## Cleaning up Suggested Fix branches
+
+Suggested Fix branches are temporary branches named like `geocode-suggestion/row-1821`. After approving (merging) or rejecting (closing), delete the branch when GitHub shows the **Delete branch** button. This is safe — it only removes the temporary branch and does not affect the CSV, map data, `main`, or `staging`.
+
+To have GitHub delete these branches automatically after each merge, go to:
+**Repository → Settings → General → Pull Requests → Automatically delete head branches**
+
 ## Accidentally merged a wrong Suggested Fix
 
 1. The incorrect coordinates are now in the CSV.
