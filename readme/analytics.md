@@ -55,3 +55,15 @@ GA4 Explore – create reports
 • Rename event names
 • Remove dataLayer pushes
 • Delete GTM variables without checking impact
+
+---
+
+# Impact Map Update Center — Analytics Note
+
+The public Impact Map uses GTM/GA4 `ram_map_*` events described above.
+
+The **Impact Map Update Center** (`docs/geocode-review/`) is a staff data-maintenance tool. It is separate from the public map and does not currently fire any analytics events.
+
+If dashboard tracking is added in the future, use separate event names such as `ram_impact_update_center_*` so staff actions do not mix with public map engagement data in GA4 reports.
+
+Do not rename or remove existing `ram_map_*` dataLayer events without first checking GA4 and GTM for active tags, triggers, and reports that depend on them.
