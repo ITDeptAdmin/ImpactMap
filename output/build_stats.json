@@ -8,7 +8,7 @@
   "philippines_place_geocoded": 0,
   "philippines_country_fallback": 0,
   "review_rows": 0,
-  "features": 1822,
+  "features": 1820,
   "skipped_missing_latlon": 0,
   "csv": "data/Master_Clinic_ImpactMap.csv",
   "geojson": "output/ImpactMap_Dataset.geojson",
