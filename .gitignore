@@ -1,0 +1,22 @@
+# Claude local settings
+.claude/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python local environments
+.venv/
+venv/
+env/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local test/server files
+*.log
