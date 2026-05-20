@@ -1,7 +1,7 @@
 {
   "coordinate_rows_updated": 2,
-  "matched_existing": 2,
-  "mapbox_geocoded": 0,
+  "matched_existing": 0,
+  "mapbox_geocoded": 2,
   "philippines_place_geocoded": 0,
   "philippines_country_fallback": 0,
   "review_rows": 0,
